@@ -1,0 +1,5 @@
+{
+  "name": "Person Details Card",
+  "render": "custom_elements",
+  "filename": "person-details-card.js"
+}
