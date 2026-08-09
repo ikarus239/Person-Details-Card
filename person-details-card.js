@@ -229,7 +229,7 @@ class PersonDetailsCard extends HTMLElement {
 customElements.define('person-details-card', PersonDetailsCard);
 
 // ==========================================
-// DER NATIVE HA-EDITOR (Mit automatischer Geräteerkennung)
+// DER NATIVE HA-EDITOR
 // ==========================================
 class PersonDetailsCardEditor extends HTMLElement {
   constructor() {
@@ -238,6 +238,7 @@ class PersonDetailsCardEditor extends HTMLElement {
     this._initialized = false;
     this._locationsExpanded = false;
     this._sensorsExpanded = false;
+    this._selectedDevice = null;
   }
 
   setConfig(config) {
@@ -251,11 +252,8 @@ class PersonDetailsCardEditor extends HTMLElement {
 
   set hass(hass) {
     this._hass = hass;
-    const pickers = this.shadowRoot.querySelectorAll('ha-entity-picker');
-    pickers.forEach(picker => {
-      picker.hass = hass;
-    });
     if (this._initialized) {
+      this._setupAllPickers();
       this._updateDeviceContainer();
     }
   }
@@ -469,21 +467,34 @@ class PersonDetailsCardEditor extends HTMLElement {
       });
     });
 
+    this._setupAllPickers();
+    this._attachLocationListeners();
+    this._updateDeviceContainer();
+  }
+
+  _setupAllPickers() {
+    if (!this._hass) return;
+    const config = this._config || {};
+    const variables = config.variables || {};
+
     const setupPicker = (id, label, includeDomains, val) => {
       const picker = this.shadowRoot.getElementById(id);
       if (picker) {
         picker.label = label;
         picker.includeDomains = includeDomains;
-        if (this._hass) picker.hass = this._hass;
-        picker.value = val || '';
-        picker.removeEventListener('value-changed', picker._boundHandler);
-        picker._boundHandler = (e) => {
-          if (id === 'input_entity') {
-            this._updateDeviceContainer();
-          }
-          this._valueChanged();
-        };
-        picker.addEventListener('value-changed', picker._boundHandler);
+        picker.hass = this._hass;
+        if (picker.value !== val) {
+          picker.value = val || '';
+        }
+        if (!picker._boundHandler) {
+          picker._boundHandler = () => {
+            if (id === 'input_entity') {
+              this._updateDeviceContainer();
+            }
+            this._valueChanged();
+          };
+          picker.addEventListener('value-changed', picker._boundHandler);
+        }
       }
     };
 
@@ -492,9 +503,6 @@ class PersonDetailsCardEditor extends HTMLElement {
     setupPicker('input_battery_state', 'Batterie State Sensor (Ladezustand)', ['sensor'], variables.battery_state);
     setupPicker('input_wifi', 'WLAN Sensor (SSID)', ['sensor'], variables.wifi);
     setupPicker('input_proximity', 'Proximity Sensor (Entfernung)', ['sensor'], variables.proximity);
-
-    this._attachLocationListeners();
-    this._updateDeviceContainer();
   }
 
   _updateDeviceContainer() {
@@ -509,7 +517,6 @@ class PersonDetailsCardEditor extends HTMLElement {
     if (!personId || !this._hass.states[personId]) return;
 
     const personState = this._hass.states[personId];
-    // Geräte aus den Attributen der Person auslesen
     const devices = personState.attributes.device_trackers || (personState.attributes.source ? [personState.attributes.source] : []);
 
     const box = document.createElement('div');
@@ -564,7 +571,6 @@ class PersonDetailsCardEditor extends HTMLElement {
   _autoFillSensors(deviceEntityId) {
     if (!deviceEntityId || !this._hass || !this._hass.states) return;
     
-    // Extrahiere den Basis-Namen (z.B. device_tracker.rudolf_handy -> rudolf_handy)
     const deviceObjId = deviceEntityId.replace('device_tracker.', '');
 
     const findMatchingSensor = (suffixes) => {
@@ -598,20 +604,7 @@ class PersonDetailsCardEditor extends HTMLElement {
   }
 
   _updateValues() {
-    const config = this._config;
-    const variables = config.variables || {};
-
-    const setVal = (id, val) => {
-      const el = this.shadowRoot.getElementById(id);
-      if (el && el.value !== val) el.value = val || '';
-    };
-
-    setVal('input_entity', config.entity);
-    setVal('input_battery_level', variables.battery_level);
-    setVal('input_battery_state', variables.battery_state);
-    setVal('input_wifi', variables.wifi);
-    setVal('input_proximity', variables.proximity);
-    
+    this._setupAllPickers();
     this._updateDeviceContainer();
   }
 
