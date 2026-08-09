@@ -136,7 +136,7 @@ class PersonDetailsCard extends HTMLElement {
           display: grid;
           grid-template-columns: 2fr 3fr;
           grid-template-areas: "icon details";
-          gap: 24px;
+          gap: 25px;
           align-items: center;
           color: white;
           font-family: inherit;
@@ -164,7 +164,7 @@ class PersonDetailsCard extends HTMLElement {
         .zeile {
           display: flex;
           align-items: center; /* Perfekte vertikale Zentrierung */
-          gap: 20px;          /* Deutlich erweiterter Abstand (+100%) */
+          gap: 15px;          /* Deutlich erweiterter Abstand (+100%) */
         }
 
         ha-icon {
@@ -346,3 +346,13 @@ class PersonDetailsCardEditor extends HTMLElement {
 }
 
 customElements.define('person-details-card-editor', PersonDetailsCardEditor);
+
+// Registrierung für die "Karte hinzufügen"-Auswahlliste in Home Assistant
+window.customCards = window.customCards || [];
+window.customCards.push({
+  type: "person-details-card",
+  name: "Person Details Karte",
+  description: "Zeigt das Profilbild, Status, Batterie, WLAN und Entfernung einer Person an.",
+  preview: false,
+  documentationURL: "https://github.com"
+});
