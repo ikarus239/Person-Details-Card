@@ -15,7 +15,6 @@ class PersonDetailsCard extends HTMLElement {
     return 6;
   }
 
-  // Layout mit automatischer Höhe in der Sections View (keine festen Reihen definiert)
   getGridOptions() {
     return {
       columns: 6,
@@ -206,29 +205,41 @@ class PersonDetailsCardEditor extends HTMLElement {
   constructor() {
     super();
     this.attachShadow({ mode: 'open' });
+    this._initialized = false;
   }
 
   setConfig(config) {
     this._config = config || {};
-    this._render();
+    if (!this._initialized) {
+      this._render();
+    } else {
+      this._updateValues();
+    }
   }
 
   set hass(hass) {
     this._hass = hass;
-    this._render();
+    // Verhindert das ständige Neuladen/Zurücksetzen, indem nur HASS an die Picker übergeben wird
+    const pickers = this.shadowRoot.querySelectorAll('ha-entity-picker');
+    pickers.forEach(picker => {
+      picker.hass = hass;
+    });
   }
 
   _render() {
-    if (!this._config || !this._hass) return;
+    if (!this._config) return;
 
     // Verfügbare Zonen aus Home Assistant auslesen
-    const zones = Object.keys(this._hass.states)
-      .filter(entityId => entityId.startsWith('zone.'))
-      .map(entityId => {
-        const stateObj = this._hass.states[entityId];
-        return stateObj.attributes.friendly_name || entityId.replace('zone.', '');
-      });
-    const allZones = Array.from(new Set(['home', 'not_home', ...zones]));
+    let allZones = ['home', 'not_home'];
+    if (this._hass && this._hass.states) {
+      const zones = Object.keys(this._hass.states)
+        .filter(entityId => entityId.startsWith('zone.'))
+        .map(entityId => {
+          const stateObj = this._hass.states[entityId];
+          return stateObj.attributes.friendly_name || entityId.replace('zone.', '');
+        });
+      allZones = Array.from(new Set([...allZones, ...zones]));
+    }
 
     const config = this._config;
     const variables = config.variables || {};
@@ -272,11 +283,16 @@ class PersonDetailsCardEditor extends HTMLElement {
           border-radius: 8px;
           overflow: hidden;
         }
+        .panel-content {
+          display: flex;
+          flex-direction: column;
+          gap: 16px;
+          padding: 12px 8px;
+        }
         .location-container {
           display: flex;
           flex-direction: column;
           gap: 10px;
-          padding: 12px 8px;
         }
         .location-row {
           display: flex;
@@ -335,63 +351,73 @@ class PersonDetailsCardEditor extends HTMLElement {
       </style>
 
       <div class="card-config">
-        <ha-entity-picker
-          id="input_entity"
-          label="Person"
-          .hass="${this._hass}"
-          .value="${config.entity || ''}"
-          .includeDomains="${['person']}"
-        ></ha-entity-picker>
+        <!-- Person Entität (außerhalb der Panels) -->
+        <ha-entity-picker id="input_entity"></ha-entity-picker>
 
-        <ha-entity-picker
-          id="input_battery_level"
-          label="Batterie Level Sensor"
-          .hass="${this._hass}"
-          .value="${variables.battery_level || ''}"
-          .includeDomains="${['sensor']}"
-        ></ha-entity-picker>
+        <!-- Sensoren Panel -->
+        <ha-expansion-panel header="Sensoren">
+          <div class="panel-content">
+            <ha-entity-picker id="input_battery_level"></ha-entity-picker>
+            <ha-entity-picker id="input_battery_state"></ha-entity-picker>
+            <ha-entity-picker id="input_wifi"></ha-entity-picker>
+            <ha-entity-picker id="input_proximity"></ha-entity-picker>
+          </div>
+        </ha-expansion-panel>
 
-        <ha-entity-picker
-          id="input_battery_state"
-          label="Batterie State Sensor (Ladezustand)"
-          .hass="${this._hass}"
-          .value="${variables.battery_state || ''}"
-          .includeDomains="${['sensor']}"
-        ></ha-entity-picker>
-
-        <ha-entity-picker
-          id="input_wifi"
-          label="WLAN Sensor (SSID)"
-          .hass="${this._hass}"
-          .value="${variables.wifi || ''}"
-          .includeDomains="${['sensor']}"
-        ></ha-entity-picker>
-
-        <ha-entity-picker
-          id="input_proximity"
-          label="Proximity Sensor (Entfernung)"
-          .hass="${this._hass}"
-          .value="${variables.proximity || ''}"
-          .includeDomains="${['sensor']}"
-        ></ha-entity-picker>
-
+        <!-- Orte & Rahmenfarben Panel -->
         <ha-expansion-panel header="Orte & Rahmenfarben">
-          <div class="location-container">
-            ${locationRowsHtml}
-            <button type="button" id="add-location-btn" class="add-btn">
-              <ha-icon icon="mdi:plus"></ha-icon> Ort hinzufügen
-            </button>
+          <div class="panel-content">
+            <div class="location-container">
+              ${locationRowsHtml}
+              <button type="button" id="add-location-btn" class="add-btn">
+                <ha-icon icon="mdi:plus"></ha-icon> Ort hinzufügen
+              </button>
+            </div>
           </div>
         </ha-expansion-panel>
       </div>
     `;
 
-    // Event-Listener für Entity-Picker
-    this.shadowRoot.querySelectorAll('ha-entity-picker').forEach(picker => {
-      picker.addEventListener('value-changed', () => this._valueChanged());
-    });
+    this._initialized = true;
 
-    // Event-Listener für dynamische Zeilen
+    // Picker-Eigenschaften setzen
+    const setupPicker = (id, label, includeDomains, val) => {
+      const picker = this.shadowRoot.getElementById(id);
+      if (picker) {
+        picker.label = label;
+        picker.includeDomains = includeDomains;
+        if (this._hass) picker.hass = this._hass;
+        picker.value = val || '';
+        picker.addEventListener('value-changed', () => this._valueChanged());
+      }
+    };
+
+    setupPicker('input_entity', 'Person', ['person'], config.entity);
+    setupPicker('input_battery_level', 'Batterie Level Sensor', ['sensor'], variables.battery_level);
+    setupPicker('input_battery_state', 'Batterie State Sensor (Ladezustand)', ['sensor'], variables.battery_state);
+    setupPicker('input_wifi', 'WLAN Sensor (SSID)', ['sensor'], variables.wifi);
+    setupPicker('input_proximity', 'Proximity Sensor (Entfernung)', ['sensor'], variables.proximity);
+
+    this._attachLocationListeners();
+  }
+
+  _updateValues() {
+    const config = this._config;
+    const variables = config.variables || {};
+
+    const setVal = (id, val) => {
+      const el = this.shadowRoot.getElementById(id);
+      if (el && el.value !== val) el.value = val || '';
+    };
+
+    setVal('input_entity', config.entity);
+    setVal('input_battery_level', variables.battery_level);
+    setVal('input_battery_state', variables.battery_state);
+    setVal('input_wifi', variables.wifi);
+    setVal('input_proximity', variables.proximity);
+  }
+
+  _attachLocationListeners() {
     this.shadowRoot.querySelectorAll('.location-row').forEach(row => {
       const index = parseInt(row.dataset.index);
       const select = row.querySelector('.zone-select');
@@ -402,6 +428,7 @@ class PersonDetailsCardEditor extends HTMLElement {
         const val = e.target.value;
         this._updateLocationColor(index, val, colorInput.value);
         
+        const locationColors = this._config.location_colors || [];
         if (val && index === locationColors.length - 1) {
           this._addEmptyLocation();
         }
@@ -429,6 +456,7 @@ class PersonDetailsCardEditor extends HTMLElement {
     config.location_colors = config.location_colors || [];
     config.location_colors.push({ zone: '', color: '#3498db' });
     this._config = config;
+    this._initialized = false; 
     this._render();
     this._valueChanged();
   }
@@ -448,6 +476,7 @@ class PersonDetailsCardEditor extends HTMLElement {
     config.location_colors = config.location_colors || [];
     config.location_colors.splice(index, 1);
     this._config = config;
+    this._initialized = false; 
     this._render();
     this._valueChanged();
   }
