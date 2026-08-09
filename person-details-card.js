@@ -184,30 +184,50 @@ class PersonDetailsCard extends HTMLElement {
 customElements.define('person-details-card', PersonDetailsCard);
 
 // ==========================================
-// DER VISUELLE EDITOR (IM OFFIZIELLEN HA-DESIGN)
+// DER NATIVE HA-EDITOR (MIT ECHTEN PICKERN)
 // ==========================================
 class PersonDetailsCardEditor extends HTMLElement {
+  constructor() {
+    super();
+    this.attachShadow({ mode: 'open' });
+  }
+
   setConfig(config) {
     this._config = config || {};
-    if (this._hass && !this._content) {
-      this._render();
-    }
+    this._render();
   }
 
   set hass(hass) {
     this._hass = hass;
-    if (this._config && !this._content) {
-      this._render();
-    }
+    this._render();
   }
 
   _render() {
     if (!this._config || !this._hass) return;
     
+    // Verhindern, dass der Editor bei jedem Tippen komplett neu gerendert wird und den Fokus verliert
+    if (this._rendered) {
+      // Nur die Werte aktualisieren, falls sie sich von außen geändert haben
+      const config = this._config;
+      const variables = config.variables || {};
+      
+      const setVal = (id, val) => {
+        const el = this.shadowRoot.getElementById(id);
+        if (el && el.value !== val) el.value = val || '';
+      };
+
+      setVal('input_entity', config.entity);
+      setVal('input_battery_level', variables.battery_level);
+      setVal('input_battery_state', variables.battery_state);
+      setVal('input_wifi', variables.wifi);
+      setVal('input_proximity', variables.proximity);
+      return;
+    }
+
     const config = this._config;
     const variables = config.variables || {};
 
-    this.innerHTML = `
+    this.shadowRoot.innerHTML = `
       <style>
         .card-config {
           display: flex;
@@ -215,122 +235,82 @@ class PersonDetailsCardEditor extends HTMLElement {
           gap: 16px;
           padding: 8px 0;
           color: var(--primary-text-color);
-          font-family: var(--paper-font-body1_-_font-family);
         }
-        .config-row {
-          display: flex;
-          flex-direction: column;
-          gap: 6px;
-        }
-        label {
-          font-size: 12px;
-          color: var(--secondary-text-color);
-          font-weight: 500;
-        }
-        select {
-          background-color: var(--secondary-background-color);
-          color: var(--primary-text-color);
-          border: 1px solid var(--divider-color);
-          border-radius: 4px;
-          padding: 10px;
-          font-size: 14px;
+        ha-entity-picker {
           width: 100%;
-          box-sizing: border-box;
-          outline: none;
-        }
-        select:focus {
-          border-color: var(--primary-color);
-        }
-        hr {
-          border: none;
-          border-top: 1px solid var(--divider-color);
-          margin: 4px 0;
         }
       </style>
 
       <div class="card-config">
-        <div class="config-row">
-          <label>Person</label>
-          <select id="input_entity">
-            <option value="">-- Bitte wählen --</option>
-            ${Object.keys(this._hass.states)
-              .filter(e => e.startsWith('person.'))
-              .map(e => `<option value="${e}" ${config.entity === e ? 'selected' : ''}>${e}</option>`)
-              .join('')}
-          </select>
-        </div>
+        <ha-entity-picker
+          id="input_entity"
+          label="Person"
+          .hass="${this._hass}"
+          .value="${config.entity || ''}"
+          .includeDomains="${['person']}"
+        ></ha-entity-picker>
 
-        <hr>
+        <ha-entity-picker
+          id="input_battery_level"
+          label="Batterie Level Sensor"
+          .hass="${this._hass}"
+          .value="${variables.battery_level || ''}"
+          .includeDomains="${['sensor']}"
+        ></ha-entity-picker>
 
-        <div class="config-row">
-          <label>Batterie Level Sensor</label>
-          <select id="input_battery_level">
-            <option value="">-- Kein Sensor --</option>
-            ${Object.keys(this._hass.states)
-              .filter(e => e.startsWith('sensor.'))
-              .map(e => `<option value="${e}" ${variables.battery_level === e ? 'selected' : ''}>${e}</option>`)
-              .join('')}
-          </select>
-        </div>
+        <ha-entity-picker
+          id="input_battery_state"
+          label="Batterie State Sensor (Ladezustand)"
+          .hass="${this._hass}"
+          .value="${variables.battery_state || ''}"
+          .includeDomains="${['sensor']}"
+        ></ha-entity-picker>
 
-        <div class="config-row">
-          <label>Batterie State Sensor (Ladezustand)</label>
-          <select id="input_battery_state">
-            <option value="">-- Kein Sensor --</option>
-            ${Object.keys(this._hass.states)
-              .filter(e => e.startsWith('sensor.'))
-              .map(e => `<option value="${e}" ${variables.battery_state === e ? 'selected' : ''}>${e}</option>`)
-              .join('')}
-          </select>
-        </div>
+        <ha-entity-picker
+          id="input_wifi"
+          label="WLAN Sensor (SSID)"
+          .hass="${this._hass}"
+          .value="${variables.wifi || ''}"
+          .includeDomains="${['sensor']}"
+        ></ha-entity-picker>
 
-        <div class="config-row">
-          <label>WLAN Sensor (SSID)</label>
-          <select id="input_wifi">
-            <option value="">-- Kein Sensor --</option>
-            ${Object.keys(this._hass.states)
-              .filter(e => e.startsWith('sensor.'))
-              .map(e => `<option value="${e}" ${variables.wifi === e ? 'selected' : ''}>${e}</option>`)
-              .join('')}
-          </select>
-        </div>
-
-        <div class="config-row">
-          <label>Proximity Sensor (Entfernung)</label>
-          <select id="input_proximity">
-            <option value="">-- Kein Sensor --</option>
-            ${Object.keys(this._hass.states)
-              .filter(e => e.startsWith('sensor.'))
-              .map(e => `<option value="${e}" ${variables.proximity === e ? 'selected' : ''}>${e}</option>`)
-              .join('')}
-          </select>
-        </div>
+        <ha-entity-picker
+          id="input_proximity"
+          label="Proximity Sensor (Entfernung)"
+          .hass="${this._hass}"
+          .value="${variables.proximity || ''}"
+          .includeDomains="${['sensor']}"
+        ></ha-entity-picker>
       </div>
     `;
 
-    this._content = true;
+    this._rendered = true;
 
-    // Auf Änderungen lauschen
-    this.querySelectorAll('select').forEach(select => {
-      select.addEventListener('change', () => this._valueChanged());
+    // Auf Änderungen in den Pickern lauschen
+    this.shadowRoot.querySelectorAll('ha-entity-picker').forEach(picker => {
+      picker.addEventListener('value-changed', () => this._valueChanged());
     });
   }
 
   _valueChanged() {
     if (!this._config || !this._hass) return;
 
+    const getVal = (id) => {
+      const el = this.shadowRoot.getElementById(id);
+      return el ? el.value : '';
+    };
+
     const newConfig = {
       type: 'custom:person-details-card',
-      entity: this.querySelector('#input_entity').value,
+      entity: getVal('input_entity'),
       variables: {
-        battery_level: this.querySelector('#input_battery_level').value,
-        battery_state: this.querySelector('#input_battery_state').value,
-        wifi: this.querySelector('#input_wifi').value,
-        proximity: this.querySelector('#input_proximity').value
+        battery_level: getVal('input_battery_level'),
+        battery_state: getVal('input_battery_state'),
+        wifi: getVal('input_wifi'),
+        proximity: getVal('input_proximity')
       }
     };
 
-    // WICHTIG: Die Config lokal aktualisieren, damit sie nicht überschrieben wird
     this._config = newConfig;
 
     const event = new CustomEvent('config-changed', {
