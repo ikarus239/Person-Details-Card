@@ -202,50 +202,65 @@ class PersonDetailsCardEditor extends HTMLElement {
     }
   }
 
-  _render() {
-    // Falls _config wider Erwarten immer noch leer ist, fangen wir es hier ab
+_render() {
     const config = this._config || {};
     const variables = config.variables || {};
 
+    // Hilfsfunktion: Sucht alle Entitäten eines Typs heraus (z.B. "person.")
+    const getOptions = (domain) => {
+      return Object.keys(this._hass.states)
+        .filter(entity => entity.startsWith(domain))
+        .sort()
+        .map(entity => `<option value="${entity}" ${config.entity === entity || variables.battery_level === entity || variables.wifi === entity || variables.proximity === entity ? 'selected' : ''}>${entity}</option>`)
+        .join('');
+    };
+
+    // Wir bauen die HTML-Select-Felder
     this.innerHTML = `
-      <div style="padding: 10px; display: flex; flex-direction: column; gap: 12px;">
-        <p style="margin: 0; font-weight: bold; color: var(--primary-text-color);">Personen-Karte Konfiguration</p>
+      <div style="padding: 10px; display: flex; flex-direction: column; gap: 15px;">
+        <p style="margin: 0; font-weight: bold;">Konfiguration</p>
         
-        <!-- Eingabe für die Person -->
         <div>
-          <label style="display: block; margin-bottom: 4px; font-size: 12px;">Person Entität (z.B. person.rudolf)</label>
-          <input type="text" id="input_entity" value="${config.entity || ''}" style="width: 100%; padding: 8px; box-sizing: border-box;" />
+          <label style="display:block; font-size: 12px;">Person</label>
+          <select id="input_entity" style="width:100%; padding: 8px;">
+            <option value="">-- Bitte wählen --</option>
+            ${Object.keys(this._hass.states).filter(e => e.startsWith('person.')).map(e => `<option value="${e}" ${config.entity === e ? 'selected' : ''}>${e}</option>`).join('')}
+          </select>
         </div>
 
-        <hr style="border: 0; border-top: 1px solid var(--divider-color); margin: 5px 0;">
-
-        <!-- Sensoren -->
-        <div>
-          <label style="display: block; margin-bottom: 4px; font-size: 12px;">Batterie Level Sensor</label>
-          <input type="text" id="input_battery_level" value="${variables.battery_level || ''}" style="width: 100%; padding: 8px; box-sizing: border-box;" />
-        </div>
+        <hr style="width:100%;">
 
         <div>
-          <label style="display: block; margin-bottom: 4px; font-size: 12px;">Batterie State Sensor (Ladezustand)</label>
-          <input type="text" id="input_battery_state" value="${variables.battery_state || ''}" style="width: 100%; padding: 8px; box-sizing: border-box;" />
-        </div>
-
-        <div>
-          <label style="display: block; margin-bottom: 4px; font-size: 12px;">WLAN Sensor (SSID)</label>
-          <input type="text" id="input_wifi" value="${variables.wifi || ''}" style="width: 100%; padding: 8px; box-sizing: border-box;" />
+          <label style="display:block; font-size: 12px;">Batterie Level Sensor</label>
+          <select id="input_battery_level" style="width:100%; padding: 8px;">
+            <option value="">-- Kein Sensor --</option>
+            ${Object.keys(this._hass.states).filter(e => e.startsWith('sensor.')).map(e => `<option value="${e}" ${variables.battery_level === e ? 'selected' : ''}>${e}</option>`).join('')}
+          </select>
         </div>
 
         <div>
-          <label style="display: block; margin-bottom: 4px; font-size: 12px;">Proximity Sensor (Entfernung)</label>
-          <input type="text" id="input_proximity" value="${variables.proximity || ''}" style="width: 100%; padding: 8px; box-sizing: border-box;" />
+          <label style="display:block; font-size: 12px;">WLAN Sensor</label>
+          <select id="input_wifi" style="width:100%; padding: 8px;">
+            <option value="">-- Kein Sensor --</option>
+            ${Object.keys(this._hass.states).filter(e => e.startsWith('sensor.')).map(e => `<option value="${e}" ${variables.wifi === e ? 'selected' : ''}>${e}</option>`).join('')}
+          </select>
+        </div>
+
+        <div>
+          <label style="display:block; font-size: 12px;">Proximity Sensor</label>
+          <select id="input_proximity" style="width:100%; padding: 8px;">
+            <option value="">-- Kein Sensor --</option>
+            ${Object.keys(this._hass.states).filter(e => e.startsWith('sensor.')).map(e => `<option value="${e}" ${variables.proximity === e ? 'selected' : ''}>${e}</option>`).join('')}
+          </select>
         </div>
       </div>
     `;
 
     this._content = true;
 
-    this.querySelectorAll('input').forEach(input => {
-      input.addEventListener('input', () => this._valueChanged());
+    // Event Listener für alle Select-Felder
+    this.querySelectorAll('select').forEach(select => {
+      select.addEventListener('change', () => this._valueChanged());
     });
   }
 
