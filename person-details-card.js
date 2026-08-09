@@ -127,9 +127,7 @@ class PersonDetailsCard extends HTMLElement {
     this.shadowRoot.innerHTML = `
       <style>
         ha-card {
-          background: rgba(255, 255, 255, 0.1);
-          backdrop-filter: blur(15px);
-          -webkit-backdrop-filter: blur(15px);
+          background: var(--card-background-color);
           border-radius: 10px !important;
           box-shadow: none;
           padding: 15px;
