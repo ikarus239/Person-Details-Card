@@ -15,14 +15,12 @@ class PersonDetailsCard extends HTMLElement {
     return 6;
   }
 
-  // WICHTIG: Als Instanz-Methode (ohne static), damit HA die Spaltenbreite von 6 behält!
+  // Layout mit automatischer Höhe in der Sections View (keine festen Reihen definiert)
   getGridOptions() {
     return {
       columns: 6,
       min_columns: 3,
-      max_columns: 12,
-      rows: 2,
-      min_rows: 2
+      max_columns: 12
     };
   }
 
@@ -155,8 +153,8 @@ class PersonDetailsCard extends HTMLElement {
 
         .zeile {
           display: flex;
-          align-items: center; /* Perfekte vertikale Zentrierung */
-          gap: 15px;          /* Deutlich erweiterter Abstand (+100%) */
+          align-items: center;
+          gap: 15px;
         }
 
         ha-icon {
@@ -222,23 +220,6 @@ class PersonDetailsCardEditor extends HTMLElement {
 
   _render() {
     if (!this._config || !this._hass) return;
-    
-    if (this._rendered && this._hasRenderedOnce) {
-      const config = this._config;
-      const variables = config.variables || {};
-      
-      const setVal = (id, val) => {
-        const el = this.shadowRoot.getElementById(id);
-        if (el && el.value !== val) el.value = val || '';
-      };
-
-      setVal('input_entity', config.entity);
-      setVal('input_battery_level', variables.battery_level);
-      setVal('input_battery_state', variables.battery_state);
-      setVal('input_wifi', variables.wifi);
-      setVal('input_proximity', variables.proximity);
-      return;
-    }
 
     // Verfügbare Zonen aus Home Assistant auslesen
     const zones = Object.keys(this._hass.states)
@@ -262,12 +243,14 @@ class PersonDetailsCardEditor extends HTMLElement {
       });
 
       locationRowsHtml += `
-        <div class="location-row" data-index="${index}" style="display: flex; gap: 10px; align-items: center; margin-bottom: 8px;">
-          <select class="zone-select" style="flex: 2; padding: 8px; border-radius: 4px; background: var(--secondary-background-color); color: var(--primary-text-color); border: 1px solid var(--divider-color);">
+        <div class="location-row" data-index="${index}">
+          <select class="zone-select">
             ${optionsHtml}
           </select>
-          <input type="color" class="color-input" value="${item.color || '#3498db'}" style="width: 40px; height: 36px; border: none; cursor: pointer; background: none;">
-          <button type="button" class="delete-btn" style="background: none; border: none; color: var(--error-color); cursor: pointer; font-size: 16px;" title="Entfernen">🗑️</button>
+          <div class="color-picker-wrapper">
+            <input type="color" class="color-input" value="${item.color || '#3498db'}">
+          </div>
+          <ha-icon-button class="delete-btn" icon="mdi:delete" title="Entfernen"></ha-icon-button>
         </div>
       `;
     });
@@ -284,11 +267,70 @@ class PersonDetailsCardEditor extends HTMLElement {
         ha-entity-picker {
           width: 100%;
         }
-        .section-title {
-          font-weight: bold;
-          margin-top: 8px;
-          font-size: 13px;
+        ha-expansion-panel {
+          background: var(--secondary-background-color);
+          border-radius: 8px;
+          overflow: hidden;
+        }
+        .location-container {
+          display: flex;
+          flex-direction: column;
+          gap: 10px;
+          padding: 12px 8px;
+        }
+        .location-row {
+          display: flex;
+          gap: 10px;
+          align-items: center;
+          background: var(--card-background-color, var(--secondary-background-color));
+          padding: 8px 12px;
+          border-radius: 8px;
+          border: 1px solid var(--divider-color);
+        }
+        .zone-select {
+          flex: 1;
+          background: var(--primary-background-color);
           color: var(--primary-text-color);
+          border: 1px solid var(--divider-color);
+          border-radius: 4px;
+          padding: 8px 12px;
+          font-size: 14px;
+          outline: none;
+        }
+        .color-picker-wrapper {
+          display: flex;
+          align-items: center;
+        }
+        .color-input {
+          width: 36px;
+          height: 36px;
+          border: 1px solid var(--divider-color);
+          border-radius: 4px;
+          cursor: pointer;
+          background: none;
+          padding: 0;
+        }
+        .delete-btn {
+          --mdc-icon-button-size: 36px;
+          color: var(--error-color, #db4437);
+        }
+        .add-btn {
+          margin-top: 4px;
+          background: var(--primary-color);
+          color: var(--text-primary-color, white);
+          border: none;
+          border-radius: 4px;
+          padding: 10px 16px;
+          font-weight: 500;
+          cursor: pointer;
+          font-size: 14px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
+        }
+        .add-btn:hover {
+          opacity: 0.9;
         }
       </style>
 
@@ -333,21 +375,23 @@ class PersonDetailsCardEditor extends HTMLElement {
           .includeDomains="${['sensor']}"
         ></ha-entity-picker>
 
-        <div class="section-title">Orte & Rahmenfarben</div>
-        <div id="location-container">
-          ${locationRowsHtml}
-        </div>
-        <button type="button" id="add-location-btn" style="padding: 8px; background: var(--primary-color); color: var(--text-primary-color, white); border: none; border-radius: 4px; cursor: pointer;">+ Ort hinzufügen</button>
+        <ha-expansion-panel header="Orte & Rahmenfarben">
+          <div class="location-container">
+            ${locationRowsHtml}
+            <button type="button" id="add-location-btn" class="add-btn">
+              <ha-icon icon="mdi:plus"></ha-icon> Ort hinzufügen
+            </button>
+          </div>
+        </ha-expansion-panel>
       </div>
     `;
 
-    this._rendered = true;
-    this._hasRenderedOnce = true;
-
+    // Event-Listener für Entity-Picker
     this.shadowRoot.querySelectorAll('ha-entity-picker').forEach(picker => {
       picker.addEventListener('value-changed', () => this._valueChanged());
     });
 
+    // Event-Listener für dynamische Zeilen
     this.shadowRoot.querySelectorAll('.location-row').forEach(row => {
       const index = parseInt(row.dataset.index);
       const select = row.querySelector('.zone-select');
@@ -358,7 +402,6 @@ class PersonDetailsCardEditor extends HTMLElement {
         const val = e.target.value;
         this._updateLocationColor(index, val, colorInput.value);
         
-        // Sobald ein Ort im letzten Dropdown gewählt wird, automatisch ein neues Feld darunter anzeigen
         if (val && index === locationColors.length - 1) {
           this._addEmptyLocation();
         }
@@ -382,7 +425,7 @@ class PersonDetailsCardEditor extends HTMLElement {
   }
 
   _addEmptyLocation() {
-    const config = { ...this._config };
+    const config = JSON.parse(JSON.stringify(this._config));
     config.location_colors = config.location_colors || [];
     config.location_colors.push({ zone: '', color: '#3498db' });
     this._config = config;
@@ -391,7 +434,7 @@ class PersonDetailsCardEditor extends HTMLElement {
   }
 
   _updateLocationColor(index, zone, color) {
-    const config = { ...this._config };
+    const config = JSON.parse(JSON.stringify(this._config));
     config.location_colors = config.location_colors || [];
     if (config.location_colors[index]) {
       config.location_colors[index] = { zone, color };
@@ -401,7 +444,7 @@ class PersonDetailsCardEditor extends HTMLElement {
   }
 
   _removeLocation(index) {
-    const config = { ...this._config };
+    const config = JSON.parse(JSON.stringify(this._config));
     config.location_colors = config.location_colors || [];
     config.location_colors.splice(index, 1);
     this._config = config;
@@ -417,7 +460,7 @@ class PersonDetailsCardEditor extends HTMLElement {
       return el ? el.value : '';
     };
 
-    const config = { ...this._config };
+    const config = this._config;
 
     const newConfig = {
       type: 'custom:person-details-card',
@@ -444,7 +487,6 @@ class PersonDetailsCardEditor extends HTMLElement {
 
 customElements.define('person-details-card-editor', PersonDetailsCardEditor);
 
-// Registrierung für die "Karte hinzufügen"-Auswahlliste in Home Assistant
 window.customCards = window.customCards || [];
 window.customCards.push({
   type: "person-details-card",
