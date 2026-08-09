@@ -206,6 +206,8 @@ class PersonDetailsCardEditor extends HTMLElement {
     super();
     this.attachShadow({ mode: 'open' });
     this._initialized = false;
+    this._locationsExpanded = false;
+    this._sensorsExpanded = false;
   }
 
   setConfig(config) {
@@ -219,7 +221,6 @@ class PersonDetailsCardEditor extends HTMLElement {
 
   set hass(hass) {
     this._hass = hass;
-    // Verhindert das ständige Neuladen/Zurücksetzen, indem nur HASS an die Picker übergeben wird
     const pickers = this.shadowRoot.querySelectorAll('ha-entity-picker');
     pickers.forEach(picker => {
       picker.hass = hass;
@@ -228,6 +229,13 @@ class PersonDetailsCardEditor extends HTMLElement {
 
   _render() {
     if (!this._config) return;
+
+    // Zustand der Expansionspanels vor dem Neurendern sichern
+    const locPanel = this.shadowRoot.querySelector('#locations-panel');
+    if (locPanel) this._locationsExpanded = locPanel.expanded;
+
+    const sensorPanel = this.shadowRoot.querySelector('#sensors-panel');
+    if (sensorPanel) this._sensorsExpanded = sensorPanel.expanded;
 
     // Verfügbare Zonen aus Home Assistant auslesen
     let allZones = ['home', 'not_home'];
@@ -261,7 +269,9 @@ class PersonDetailsCardEditor extends HTMLElement {
           <div class="color-picker-wrapper">
             <input type="color" class="color-input" value="${item.color || '#3498db'}">
           </div>
-          <ha-icon-button class="delete-btn" icon="mdi:delete" title="Entfernen"></ha-icon-button>
+          <button type="button" class="delete-btn" title="Entfernen">
+            <ha-icon icon="mdi:delete"></ha-icon>
+          </button>
         </div>
       `;
     });
@@ -327,8 +337,18 @@ class PersonDetailsCardEditor extends HTMLElement {
           padding: 0;
         }
         .delete-btn {
-          --mdc-icon-button-size: 36px;
+          background: none;
+          border: none;
           color: var(--error-color, #db4437);
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 6px;
+          border-radius: 4px;
+        }
+        .delete-btn:hover {
+          background: rgba(219, 68, 55, 0.1);
         }
         .add-btn {
           margin-top: 4px;
@@ -355,7 +375,7 @@ class PersonDetailsCardEditor extends HTMLElement {
         <ha-entity-picker id="input_entity"></ha-entity-picker>
 
         <!-- Sensoren Panel -->
-        <ha-expansion-panel header="Sensoren">
+        <ha-expansion-panel id="sensors-panel" header="Sensoren" ${this._sensorsExpanded ? 'expanded' : ''}>
           <div class="panel-content">
             <ha-entity-picker id="input_battery_level"></ha-entity-picker>
             <ha-entity-picker id="input_battery_state"></ha-entity-picker>
@@ -365,7 +385,7 @@ class PersonDetailsCardEditor extends HTMLElement {
         </ha-expansion-panel>
 
         <!-- Orte & Rahmenfarben Panel -->
-        <ha-expansion-panel header="Orte & Rahmenfarben">
+        <ha-expansion-panel id="locations-panel" header="Orte & Rahmenfarben" ${this._locationsExpanded ? 'expanded' : ''}>
           <div class="panel-content">
             <div class="location-container">
               ${locationRowsHtml}
@@ -380,7 +400,6 @@ class PersonDetailsCardEditor extends HTMLElement {
 
     this._initialized = true;
 
-    // Picker-Eigenschaften setzen
     const setupPicker = (id, label, includeDomains, val) => {
       const picker = this.shadowRoot.getElementById(id);
       if (picker) {
@@ -388,7 +407,9 @@ class PersonDetailsCardEditor extends HTMLElement {
         picker.includeDomains = includeDomains;
         if (this._hass) picker.hass = this._hass;
         picker.value = val || '';
-        picker.addEventListener('value-changed', () => this._valueChanged());
+        picker.removeEventListener('value-changed', picker._boundHandler);
+        picker._boundHandler = () => this._valueChanged();
+        picker.addEventListener('value-changed', picker._boundHandler);
       }
     };
 
@@ -456,7 +477,6 @@ class PersonDetailsCardEditor extends HTMLElement {
     config.location_colors = config.location_colors || [];
     config.location_colors.push({ zone: '', color: '#3498db' });
     this._config = config;
-    this._initialized = false; 
     this._render();
     this._valueChanged();
   }
@@ -476,7 +496,6 @@ class PersonDetailsCardEditor extends HTMLElement {
     config.location_colors = config.location_colors || [];
     config.location_colors.splice(index, 1);
     this._config = config;
-    this._initialized = false; 
     this._render();
     this._valueChanged();
   }
