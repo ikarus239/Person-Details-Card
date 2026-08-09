@@ -184,13 +184,12 @@ class PersonDetailsCard extends HTMLElement {
 customElements.define('person-details-card', PersonDetailsCard);
 
 // ==========================================
-// DER VISUELLE EDITOR FÜR DIE KARTE
+// DER VISUELLE EDITOR (IM OFFIZIELLEN HA-DESIGN)
 // ==========================================
 class PersonDetailsCardEditor extends HTMLElement {
   setConfig(config) {
-    // Falls noch keine Konfiguration da ist, nehmen wir ein leeres Paket, damit nichts abstürzt
     this._config = config || {};
-    if (this._hass) {
+    if (this._hass && !this._content) {
       this._render();
     }
   }
@@ -202,55 +201,108 @@ class PersonDetailsCardEditor extends HTMLElement {
     }
   }
 
-_render() {
-    const config = this._config || {};
+  _render() {
+    if (!this._config || !this._hass) return;
+    
+    const config = this._config;
     const variables = config.variables || {};
 
-    // Hilfsfunktion: Sucht alle Entitäten eines Typs heraus (z.B. "person.")
-    const getOptions = (domain) => {
-      return Object.keys(this._hass.states)
-        .filter(entity => entity.startsWith(domain))
-        .sort()
-        .map(entity => `<option value="${entity}" ${config.entity === entity || variables.battery_level === entity || variables.wifi === entity || variables.proximity === entity ? 'selected' : ''}>${entity}</option>`)
-        .join('');
-    };
-
-    // Wir bauen die HTML-Select-Felder
     this.innerHTML = `
-      <div style="padding: 10px; display: flex; flex-direction: column; gap: 15px;">
-        <p style="margin: 0; font-weight: bold;">Konfiguration</p>
-        
-        <div>
-          <label style="display:block; font-size: 12px;">Person</label>
-          <select id="input_entity" style="width:100%; padding: 8px;">
+      <style>
+        .card-config {
+          display: flex;
+          flex-direction: column;
+          gap: 16px;
+          padding: 8px 0;
+          color: var(--primary-text-color);
+          font-family: var(--paper-font-body1_-_font-family);
+        }
+        .config-row {
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
+        }
+        label {
+          font-size: 12px;
+          color: var(--secondary-text-color);
+          font-weight: 500;
+        }
+        select {
+          background-color: var(--secondary-background-color);
+          color: var(--primary-text-color);
+          border: 1px solid var(--divider-color);
+          border-radius: 4px;
+          padding: 10px;
+          font-size: 14px;
+          width: 100%;
+          box-sizing: border-box;
+          outline: none;
+        }
+        select:focus {
+          border-color: var(--primary-color);
+        }
+        hr {
+          border: none;
+          border-top: 1px solid var(--divider-color);
+          margin: 4px 0;
+        }
+      </style>
+
+      <div class="card-config">
+        <div class="config-row">
+          <label>Person</label>
+          <select id="input_entity">
             <option value="">-- Bitte wählen --</option>
-            ${Object.keys(this._hass.states).filter(e => e.startsWith('person.')).map(e => `<option value="${e}" ${config.entity === e ? 'selected' : ''}>${e}</option>`).join('')}
+            ${Object.keys(this._hass.states)
+              .filter(e => e.startsWith('person.'))
+              .map(e => `<option value="${e}" ${config.entity === e ? 'selected' : ''}>${e}</option>`)
+              .join('')}
           </select>
         </div>
 
-        <hr style="width:100%;">
+        <hr>
 
-        <div>
-          <label style="display:block; font-size: 12px;">Batterie Level Sensor</label>
-          <select id="input_battery_level" style="width:100%; padding: 8px;">
+        <div class="config-row">
+          <label>Batterie Level Sensor</label>
+          <select id="input_battery_level">
             <option value="">-- Kein Sensor --</option>
-            ${Object.keys(this._hass.states).filter(e => e.startsWith('sensor.')).map(e => `<option value="${e}" ${variables.battery_level === e ? 'selected' : ''}>${e}</option>`).join('')}
+            ${Object.keys(this._hass.states)
+              .filter(e => e.startsWith('sensor.'))
+              .map(e => `<option value="${e}" ${variables.battery_level === e ? 'selected' : ''}>${e}</option>`)
+              .join('')}
           </select>
         </div>
 
-        <div>
-          <label style="display:block; font-size: 12px;">WLAN Sensor</label>
-          <select id="input_wifi" style="width:100%; padding: 8px;">
+        <div class="config-row">
+          <label>Batterie State Sensor (Ladezustand)</label>
+          <select id="input_battery_state">
             <option value="">-- Kein Sensor --</option>
-            ${Object.keys(this._hass.states).filter(e => e.startsWith('sensor.')).map(e => `<option value="${e}" ${variables.wifi === e ? 'selected' : ''}>${e}</option>`).join('')}
+            ${Object.keys(this._hass.states)
+              .filter(e => e.startsWith('sensor.'))
+              .map(e => `<option value="${e}" ${variables.battery_state === e ? 'selected' : ''}>${e}</option>`)
+              .join('')}
           </select>
         </div>
 
-        <div>
-          <label style="display:block; font-size: 12px;">Proximity Sensor</label>
-          <select id="input_proximity" style="width:100%; padding: 8px;">
+        <div class="config-row">
+          <label>WLAN Sensor (SSID)</label>
+          <select id="input_wifi">
             <option value="">-- Kein Sensor --</option>
-            ${Object.keys(this._hass.states).filter(e => e.startsWith('sensor.')).map(e => `<option value="${e}" ${variables.proximity === e ? 'selected' : ''}>${e}</option>`).join('')}
+            ${Object.keys(this._hass.states)
+              .filter(e => e.startsWith('sensor.'))
+              .map(e => `<option value="${e}" ${variables.wifi === e ? 'selected' : ''}>${e}</option>`)
+              .join('')}
+          </select>
+        </div>
+
+        <div class="config-row">
+          <label>Proximity Sensor (Entfernung)</label>
+          <select id="input_proximity">
+            <option value="">-- Kein Sensor --</option>
+            ${Object.keys(this._hass.states)
+              .filter(e => e.startsWith('sensor.'))
+              .map(e => `<option value="${e}" ${variables.proximity === e ? 'selected' : ''}>${e}</option>`)
+              .join('')}
           </select>
         </div>
       </div>
@@ -258,7 +310,7 @@ _render() {
 
     this._content = true;
 
-    // Event Listener für alle Select-Felder
+    // Auf Änderungen lauschen
     this.querySelectorAll('select').forEach(select => {
       select.addEventListener('change', () => this._valueChanged());
     });
@@ -278,6 +330,9 @@ _render() {
       }
     };
 
+    // WICHTIG: Die Config lokal aktualisieren, damit sie nicht überschrieben wird
+    this._config = newConfig;
+
     const event = new CustomEvent('config-changed', {
       detail: { config: newConfig },
       bubbles: true,
@@ -287,5 +342,4 @@ _render() {
   }
 }
 
-// Dem Browser sagen, wie der Editor heißt
 customElements.define('person-details-card-editor', PersonDetailsCardEditor);
