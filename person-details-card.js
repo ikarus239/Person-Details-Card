@@ -86,7 +86,7 @@ class PersonDetailsCard extends HTMLElement {
     let wifiColor = "#ef4f1a"; 
     if (vars.wifi && hass.states[vars.wifi]) {
       const ssid = hass.states[vars.wifi].state;
-      if (ssid && ssid !== "unknown" && ssid !== "unavailable" && ssid !== "None" && ssid !== "" && ssid !== "Off") {
+      if (ssid && ssid !== "unknown" && ssid !== "unavailable" && ssid !== "None" && ssid !== "" && ssid !== "Off" && ssid !== "<not connected>" && !ssid.toLowerCase().includes("not connected")) {
         wifiText = ssid;
         wifiIcon = "mdi:wifi";
         wifiColor = "#77c66e"; 
