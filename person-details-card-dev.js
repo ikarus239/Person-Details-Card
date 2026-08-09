@@ -26,7 +26,7 @@ class PersonDetailsCard extends HTMLElement {
   }
 
   static getConfigElement() {
-    return document.createElement('person-details-card-editor');
+    return document.createElement('person-details-card-dev-editor');
   }
 
   static getStubConfig() {
@@ -283,7 +283,7 @@ class PersonDetailsCard extends HTMLElement {
   }
 }
 
-customElements.define('person-details-card', PersonDetailsCard);
+customElements.define('person-details-card-dev', PersonDetailsCard);
 
 // ==========================================
 // DER NATIVE HA-EDITOR
@@ -785,7 +785,7 @@ class PersonDetailsCardEditor extends HTMLElement {
     const config = this._config;
 
     const newConfig = {
-      type: 'custom:person-details-card',
+      type: 'custom:person-details-card-dev',
       entity: getVal('input_entity'),
       variables: {
         battery_level: getVal('input_battery_level'),
@@ -811,12 +811,12 @@ class PersonDetailsCardEditor extends HTMLElement {
   }
 }
 
-customElements.define('person-details-card-editor', PersonDetailsCardEditor);
+customElements.define('person-details-card-dev-editor', PersonDetailsCardEditor);
 
 window.customCards = window.customCards || [];
 window.customCards.push({
-  type: "person-details-card",
-  name: "Person Details Karte",
+  type: "person-details-card-dev",
+  name: "Person Details Karte (DEV)",
   description: "Zeigt das Profilbild, Status, Batterie, WLAN und Entfernung einer Person an.",
   preview: false,
   documentationURL: "https://github.com"
