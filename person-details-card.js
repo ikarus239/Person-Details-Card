@@ -1,4 +1,14 @@
 class PersonDetailsCard extends HTMLElement {
+  // Sagt Home Assistant, welcher Editor für diese Karte genutzt werden soll
+  static getConfigElement() {
+    return document.createElement('person-details-card-editor');
+  }
+
+  // Ein Standard-Beispiel für den Fall, dass jemand die Karte ganz neu hinzufügt
+  static getStubConfig() {
+    return { entity: "person.rudolf" };
+  }
+  
   constructor() {
     super();
     this.attachShadow({ mode: 'open' }); 
@@ -172,3 +182,89 @@ class PersonDetailsCard extends HTMLElement {
 }
 
 customElements.define('person-details-card', PersonDetailsCard);
+
+// ==========================================
+// DER VISUELLE EDITOR FÜR DIE KARTE
+// ==========================================
+class PersonDetailsCardEditor extends HTMLElement {
+  setConfig(config) {
+    this._config = config;
+  }
+
+  set hass(hass) {
+    this._hass = hass;
+    if (!this._content) {
+      this._render();
+    }
+  }
+
+  _render() {
+    this.innerHTML = `
+      <div style="padding: 10px; display: flex; flex-direction: column; gap: 12px;">
+        <p style="margin: 0; font-weight: bold; color: var(--primary-text-color);">Personen-Karte Konfiguration</p>
+        
+        <!-- Eingabe für die Person -->
+        <div>
+          <label style="display: block; margin-bottom: 4px; font-size: 12px;">Person Entität (z.B. person.rudolf)</label>
+          <input type="text" id="input_entity" value="${this._config.entity || ''}" style="width: 100%; padding: 8px; box-sizing: border-box;" />
+        </div>
+
+        <hr style="border: 0; border-top: 1px solid var(--divider-color); margin: 5px 0;">
+
+        <!-- Sensoren -->
+        <div>
+          <label style="display: block; margin-bottom: 4px; font-size: 12px;">Batterie Level Sensor</label>
+          <input type="text" id="input_battery_level" value="${this._config.variables?.battery_level || ''}" style="width: 100%; padding: 8px; box-sizing: border-box;" />
+        </div>
+
+        <div>
+          <label style="display: block; margin-bottom: 4px; font-size: 12px;">Batterie State Sensor (Ladezustand)</label>
+          <input type="text" id="input_battery_state" value="${this._config.variables?.battery_state || ''}" style="width: 100%; padding: 8px; box-sizing: border-box;" />
+        </div>
+
+        <div>
+          <label style="display: block; margin-bottom: 4px; font-size: 12px;">WLAN Sensor (SSID)</label>
+          <input type="text" id="input_wifi" value="${this._config.variables?.wifi || ''}" style="width: 100%; padding: 8px; box-sizing: border-box;" />
+        </div>
+
+        <div>
+          <label style="display: block; margin-bottom: 4px; font-size: 12px;">Proximity Sensor (Entfernung)</label>
+          <input type="text" id="input_proximity" value="${this._config.variables?.proximity || ''}" style="width: 100%; padding: 8px; box-sizing: border-box;" />
+        </div>
+      </div>
+    `;
+
+    this._content = true;
+
+    // Wenn der Nutzer etwas ändert, schicken wir die Daten an Home Assistant zurück
+    this.querySelectorAll('input').forEach(input => {
+      input.addEventListener('input', () => this._valueChanged());
+    });
+  }
+
+  _valueChanged() {
+    if (!this._config || !this._hass) return;
+
+    const newConfig = {
+      type: 'custom:person-details-card',
+      entity: this.querySelector('#input_entity').value,
+      variables: {
+        battery_level: this.querySelector('#input_battery_level').value,
+        battery_state: this.querySelector('#input_battery_state').value,
+        wifi: this.querySelector('#input_wifi').value,
+        proximity: this.querySelector('#input_proximity').value
+      }
+    };
+
+    // Wir sagen Home Assistant, dass sich die Konfiguration geändert hat
+    const event = new CustomEvent('config-changed', {
+      detail: { config: newConfig },
+      bubbles: true,
+      composed: true,
+    });
+    this.dispatchEvent(event);
+  }
+}
+
+// Dem Browser sagen, wie der Editor heißt
+customElements.define('person-details-card-editor', PersonDetailsCardEditor);
