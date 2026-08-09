@@ -12,74 +12,146 @@ class PersonDetailsCard extends HTMLElement {
   }
 
   set hass(hass) {
-    // 1. Welche Person wurde im Dashboard ausgewählt? (z.B. person.kultscher_rudolf)
     const personId = this.config.entity;
-    
-    // 2. Wir holen uns ALLE aktuellen Infos zu dieser Person aus Home Assistant
     const personDaten = hass.states[personId];
 
-    // Wenn es die Person nicht gibt, brechen wir hier ab
     if (!personDaten) {
       this.shadowRoot.innerHTML = `<ha-card><div style="padding: 20px;">Person nicht gefunden!</div></ha-card>`;
       return;
     }
 
-    // 3. Jetzt ziehen wir uns die konkreten Infos raus
-    const status = personDaten.state; // z.B. "home" oder "not_home"
-    const bildUrl = personDaten.attributes.entity_picture; // Das Profilbild
-    const name = personDaten.attributes.friendly_name; // Der Name
+    // Grundlegende Daten der Person
+    const status = personDaten.state;
+    const bildUrl = personDaten.attributes.entity_picture;
+    const name = personDaten.attributes.friendly_name;
 
-    // 4. Rahmenfarbe bestimmen (Dein alter YAML-Code, übersetzt in JavaScript)
-    let rahmenFarbe = "#dedede"; // Standard (Grau)
-    if (status === "home") rahmenFarbe = "#77c66e"; // Grün
-    if (status === "not_home") rahmenFarbe = "#dedede"; // Grau
-    if (status === "School") rahmenFarbe = "#964b00"; // Braun
-    if (status === "Rosenbauer") rahmenFarbe = "#00bfff"; // DeepSkyBlue
-    if (status === "Hospital") rahmenFarbe = "#005f5f"; // DeepTeal
-    if (status === "Fire Brigade") rahmenFarbe = "#b22222"; // Schamottrot
-    if (status === "Familie Zeller") rahmenFarbe = "#e2b007"; // Goldgelb
-    if (status === "Familie Schöffmann") rahmenFarbe = "#e2b007"; // Goldgelb
-    if (status === "Familie Mader") rahmenFarbe = "#e2b007"; // Goldgelb
+    // Variablen aus der Dashboard-Konfiguration auslesen (Batterie, WLAN, Proximity)
+    const vars = this.config.variables || {};
+    
+    // 1. Batterie-Daten auslesen
+    let batteryLvl = "–";
+    let batteryColor = "#77c66e";
+    let batteryIcon = "mdi:battery";
+    if (vars.battery_level && hass.states[vars.battery_level]) {
+      batteryLvl = hass.states[vars.battery_level].state;
+      const numLvl = parseFloat(batteryLvl);
+      if (numLvl < 10) batteryColor = "#ef4f1a";
+      else if (numLvl < 25) batteryColor = "#ffa500";
+    }
+    if (vars.battery_state && hass.states[vars.battery_state]) {
+      if (hass.states[vars.battery_state].state === 'charging') {
+        batteryIcon = "mdi:battery-charging";
+      }
+    }
 
-    // 5. Hier bauen wir das Aussehen (HTML) und das Design (CSS)
+    // 2. WLAN-Daten auslesen
+    let wifiText = "–";
+    let wifiIcon = "mdi:wifi-off";
+    if (vars.wifi && hass.states[vars.wifi]) {
+      const ssid = hass.states[vars.wifi].state;
+      if (ssid && ssid !== "unknown" && ssid !== "unavailable") {
+        wifiText = ssid;
+        wifiIcon = "mdi:wifi";
+      }
+    }
+
+    // 3. Proximity (Entfernung) auslesen
+    let proximityText = "–";
+    if (vars.proximity && hass.states[vars.proximity]) {
+      const d = parseFloat(hass.states[vars.proximity].state);
+      proximityText = isNaN(d) ? "–" : (d / 1000).toFixed(1) + " km";
+    }
+
+    // Rahmenfarbe bestimmen
+    let rahmenFarbe = "#dedede";
+    if (status === "home") rahmenFarbe = "#77c66e";
+    if (status === "School") rahmenFarbe = "#964b00";
+    if (status === "Rosenbauer") rahmenFarbe = "deepskyblue";
+    if (status === "Hospital") rahmenFarbe = "#005f5f";
+    if (status === "Fire Brigade") rahmenFarbe = "#b22222";
+    if (status.startsWith("Familie")) rahmenFarbe = "#e2b007";
+
+    // Status-Icon bestimmen
+    const icons = {
+      home: "mdi:home",
+      not_home: "mdi:home-export-outline",
+      "School": "mdi:school",
+      "Hospital": "mdi:hospital",
+      "Fire Brigade": "mdi:fire-truck",
+      "Rosenbauer": "mdi:fire-station"
+    };
+    const statusIcon = icons[status] || "mdi:map-marker-radius";
+
+    // HTML und CSS zusammenbauen
     this.shadowRoot.innerHTML = `
       <style>
-        /* Hier stecken deine CSS-Styles aus der YAML drin! */
         ha-card {
           background: rgba(255, 255, 255, 0.1);
           backdrop-filter: blur(15px);
           -webkit-backdrop-filter: blur(15px);
           border-radius: 10px !important;
           box-shadow: none;
-          padding: 10% 5%;
-          display: flex;
+          padding: 15px;
+          display: grid;
+          grid-template-columns: 2fr 3fr;
+          grid-template-areas: "icon details";
+          gap: 10px;
           align-items: center;
-          gap: 15px;
-          color: white; /* Helle Schrift für dunklen Hintergrund */
-        }
-        
-        .profilbild {
-          width: 60px;
-          height: 60px;
-          border-radius: 10px;
-          border: 5px solid ${rahmenFarbe}; /* Hier wird die Farbe von oben eingesetzt */
-          object-fit: cover;
+          color: white;
+          font-family: inherit;
         }
 
-        .text-bereich {
+        .profilbild {
+          grid-area: icon;
+          width: 100%;
+          aspect-ratio: 1/1;
+          border-radius: 10px;
+          border: 5px solid ${rahmenFarbe};
+          object-fit: cover;
+          box-sizing: border-box;
+        }
+
+        .details {
+          grid-area: details;
           display: flex;
           flex-direction: column;
+          gap: 4px;
+          font-size: 11px;
+        }
+
+        .zeile {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+        }
+
+        ha-icon {
+          width: 16px;
+          height: 16px;
+          color: #888;
         }
       </style>
 
       <ha-card>
-        <!-- Das Bild -->
         <img class="profilbild" src="${bildUrl}" alt="Profilbild">
         
-        <!-- Der Text daneben -->
-        <div class="text-bereich">
-          <span style="font-weight: bold; font-size: 16px;">${name}</span>
-          <span style="opacity: 0.8; font-size: 12px; text-transform: capitalize;">${status}</span>
+        <div class="details">
+          <div class="zeile">
+            <ha-icon icon="${statusIcon}"></ha-icon>
+            <span style="text-transform: capitalize; font-weight: bold;">${status}</span>
+          </div>
+          <div class="zeile">
+            <ha-icon icon="${batteryIcon}"></ha-icon>
+            <span style="color: ${batteryColor};">${batteryLvl}% battery</span>
+          </div>
+          <div class="zeile">
+            <ha-icon icon="${wifiIcon}"></ha-icon>
+            <span>${wifiText}</span>
+          </div>
+          <div class="zeile">
+            <ha-icon icon="mdi:map-marker-distance"></ha-icon>
+            <span>${proximityText}</span>
+          </div>
         </div>
       </ha-card>
     `;
