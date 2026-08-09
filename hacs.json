@@ -1,5 +1,6 @@
 {
   "name": "Person Details Card",
   "render": "custom_elements",
+  "render_readme": true,
   "filename": "person-details-card.js"
 }
