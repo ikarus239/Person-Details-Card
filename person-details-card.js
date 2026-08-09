@@ -11,9 +11,20 @@ class PersonDetailsCard extends HTMLElement {
     this.config = config;
   }
 
-  // Teilt Home Assistant die Standard-Kartengröße (Höhe/Breite) mit
+  // Für ältere Ansichten (Masonry)
   static getCardSize() {
     return 6;
+  }
+
+  // NEU: Zwingt das moderne Dashboard (Sections View) dazu, standardmäßig 6 Spalten (halbe Breite) zu nutzen
+  static getGridOptions() {
+    return {
+      columns: 6,
+      min_columns: 3,
+      max_columns: 12,
+      rows: 2,
+      min_rows: 2
+    };
   }
 
   static getConfigElement() {
@@ -39,7 +50,7 @@ class PersonDetailsCard extends HTMLElement {
 
     const vars = this.config.variables || {};
     
-    // 1. Batterie-Logik (Farben & Icons nach Zustand)
+    // 1. Batterie-Logik
     let batteryLvl = "–";
     let batteryColor = "#77c66e"; // Grün ab 30%
     let batteryIcon = "mdi:battery";
@@ -54,7 +65,6 @@ class PersonDetailsCard extends HTMLElement {
           batteryColor = "#ffa500"; // Orange unter 30%
         }
 
-        // Dynamisches Icon je nach Akkustand
         if (numLvl >= 95) batteryIcon = "mdi:battery";
         else if (numLvl <= 5) batteryIcon = "mdi:battery-outline";
         else {
@@ -64,7 +74,6 @@ class PersonDetailsCard extends HTMLElement {
       }
     }
 
-    // Ladezustand prüfen
     if (vars.battery_state && hass.states[vars.battery_state]) {
       const bState = hass.states[vars.battery_state].state;
       if (bState === 'charging' || bState === 'True' || bState === 'on') {
@@ -72,16 +81,16 @@ class PersonDetailsCard extends HTMLElement {
       }
     }
 
-    // 2. WLAN-Logik (Grün = verbunden, Rot = getrennt)
+    // 2. WLAN-Logik
     let wifiText = "–";
     let wifiIcon = "mdi:wifi-off";
-    let wifiColor = "#ef4f1a"; // Rot bei nicht verbunden
+    let wifiColor = "#ef4f1a"; 
     if (vars.wifi && hass.states[vars.wifi]) {
       const ssid = hass.states[vars.wifi].state;
       if (ssid && ssid !== "unknown" && ssid !== "unavailable" && ssid !== "None" && ssid !== "" && ssid !== "Off") {
         wifiText = ssid;
         wifiIcon = "mdi:wifi";
-        wifiColor = "#77c66e"; // Grün bei Verbindung
+        wifiColor = "#77c66e"; 
       } else {
         wifiText = "Offline";
         wifiIcon = "mdi:wifi-off";
@@ -89,7 +98,7 @@ class PersonDetailsCard extends HTMLElement {
       }
     }
 
-    // 3. Proximity (Entfernung)
+    // 3. Proximity
     let proximityText = "–";
     if (vars.proximity && hass.states[vars.proximity]) {
       const rawVal = hass.states[vars.proximity].state;
@@ -97,7 +106,7 @@ class PersonDetailsCard extends HTMLElement {
       proximityText = isNaN(d) ? rawVal : (d / 1000).toFixed(1) + " km";
     }
 
-    // Rahmenfarbe für das Profilbild
+    // Rahmenfarbe
     let rahmenFarbe = "#dedede";
     if (status === "home") rahmenFarbe = "#77c66e";
     if (status === "School") rahmenFarbe = "#964b00";
@@ -128,7 +137,7 @@ class PersonDetailsCard extends HTMLElement {
           display: grid;
           grid-template-columns: 2fr 3fr;
           grid-template-areas: "icon details";
-          gap: 10px;
+          gap: 12px;
           align-items: center;
           color: white;
           font-family: inherit;
@@ -149,22 +158,25 @@ class PersonDetailsCard extends HTMLElement {
           display: flex;
           flex-direction: column;
           justify-content: center;
-          gap: 6px;
+          gap: 8px;
           font-size: 11px;
         }
 
         .zeile {
           display: flex;
-          align-items: center; /* Zentriert Symbol und Text vertikal zueinander */
-          gap: 10px;          /* Schöner Abstand zwischen Symbol und Text */
+          align-items: center; /* Perfekte vertikale Zentrierung */
+          gap: 20px;          /* Um 100% vergrößerter Abstand (vorher 10px) */
         }
 
         ha-icon {
           width: 16px;
           height: 16px;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          flex-shrink: 0;
         }
 
-        /* Alle Schriften bleiben zwingend weiß */
         .text-white {
           color: white !important;
         }
