@@ -105,22 +105,19 @@ class PersonDetailsCard extends HTMLElement {
       proximityText = isNaN(d) ? rawVal : (d / 1000).toFixed(1) + " km";
     }
 
-    // Rahmenfarbe
+    // Dynamische Rahmenfarbe anhand der Konfiguration
     let rahmenFarbe = "#dedede";
-    if (status === "home") rahmenFarbe = "#77c66e";
-    if (status === "School") rahmenFarbe = "#964b00";
-    if (status === "Rosenbauer") rahmenFarbe = "deepskyblue";
-    if (status === "Hospital") rahmenFarbe = "#005f5f";
-    if (status === "Fire Brigade") rahmenFarbe = "#b22222";
-    if (status.startsWith("Familie")) rahmenFarbe = "#e2b007";
+    const locationColors = this.config.location_colors || [];
+    const matchedLocation = locationColors.find(item => item.zone === status);
+    if (matchedLocation && matchedLocation.color) {
+      rahmenFarbe = matchedLocation.color;
+    } else if (status === "home") {
+      rahmenFarbe = "#77c66e";
+    }
 
     const icons = {
       home: "mdi:home",
-      not_home: "mdi:home-export-outline",
-      "School": "mdi:school",
-      "Hospital": "mdi:hospital",
-      "Fire Brigade": "mdi:fire-truck",
-      "Rosenbauer": "mdi:fire-station"
+      not_home: "mdi:home-export-outline"
     };
     const statusIcon = icons[status] || "mdi:map-marker-radius";
 
@@ -226,7 +223,7 @@ class PersonDetailsCardEditor extends HTMLElement {
   _render() {
     if (!this._config || !this._hass) return;
     
-    if (this._rendered) {
+    if (this._rendered && this._hasRenderedOnce) {
       const config = this._config;
       const variables = config.variables || {};
       
@@ -243,8 +240,37 @@ class PersonDetailsCardEditor extends HTMLElement {
       return;
     }
 
+    // Verfügbare Zonen aus Home Assistant auslesen
+    const zones = Object.keys(this._hass.states)
+      .filter(entityId => entityId.startsWith('zone.'))
+      .map(entityId => {
+        const stateObj = this._hass.states[entityId];
+        return stateObj.attributes.friendly_name || entityId.replace('zone.', '');
+      });
+    const allZones = Array.from(new Set(['home', 'not_home', ...zones]));
+
     const config = this._config;
     const variables = config.variables || {};
+    const locationColors = config.location_colors || [];
+
+    let locationRowsHtml = '';
+    locationColors.forEach((item, index) => {
+      let optionsHtml = `<option value="">-- Ort wählen --</option>`;
+      allZones.forEach(z => {
+        const selected = item.zone === z ? 'selected' : '';
+        optionsHtml += `<option value="${z}" ${selected}>${z}</option>`;
+      });
+
+      locationRowsHtml += `
+        <div class="location-row" data-index="${index}" style="display: flex; gap: 10px; align-items: center; margin-bottom: 8px;">
+          <select class="zone-select" style="flex: 2; padding: 8px; border-radius: 4px; background: var(--secondary-background-color); color: var(--primary-text-color); border: 1px solid var(--divider-color);">
+            ${optionsHtml}
+          </select>
+          <input type="color" class="color-input" value="${item.color || '#3498db'}" style="width: 40px; height: 36px; border: none; cursor: pointer; background: none;">
+          <button type="button" class="delete-btn" style="background: none; border: none; color: var(--error-color); cursor: pointer; font-size: 16px;" title="Entfernen">🗑️</button>
+        </div>
+      `;
+    });
 
     this.shadowRoot.innerHTML = `
       <style>
@@ -257,6 +283,12 @@ class PersonDetailsCardEditor extends HTMLElement {
         }
         ha-entity-picker {
           width: 100%;
+        }
+        .section-title {
+          font-weight: bold;
+          margin-top: 8px;
+          font-size: 13px;
+          color: var(--primary-text-color);
         }
       </style>
 
@@ -300,14 +332,81 @@ class PersonDetailsCardEditor extends HTMLElement {
           .value="${variables.proximity || ''}"
           .includeDomains="${['sensor']}"
         ></ha-entity-picker>
+
+        <div class="section-title">Orte & Rahmenfarben</div>
+        <div id="location-container">
+          ${locationRowsHtml}
+        </div>
+        <button type="button" id="add-location-btn" style="padding: 8px; background: var(--primary-color); color: var(--text-primary-color, white); border: none; border-radius: 4px; cursor: pointer;">+ Ort hinzufügen</button>
       </div>
     `;
 
     this._rendered = true;
+    this._hasRenderedOnce = true;
 
     this.shadowRoot.querySelectorAll('ha-entity-picker').forEach(picker => {
       picker.addEventListener('value-changed', () => this._valueChanged());
     });
+
+    this.shadowRoot.querySelectorAll('.location-row').forEach(row => {
+      const index = parseInt(row.dataset.index);
+      const select = row.querySelector('.zone-select');
+      const colorInput = row.querySelector('.color-input');
+      const deleteBtn = row.querySelector('.delete-btn');
+
+      select.addEventListener('change', (e) => {
+        const val = e.target.value;
+        this._updateLocationColor(index, val, colorInput.value);
+        
+        // Sobald ein Ort im letzten Dropdown gewählt wird, automatisch ein neues Feld darunter anzeigen
+        if (val && index === locationColors.length - 1) {
+          this._addEmptyLocation();
+        }
+      });
+
+      colorInput.addEventListener('input', (e) => {
+        this._updateLocationColor(index, select.value, e.target.value);
+      });
+
+      deleteBtn.addEventListener('click', () => {
+        this._removeLocation(index);
+      });
+    });
+
+    const addBtn = this.shadowRoot.getElementById('add-location-btn');
+    if (addBtn) {
+      addBtn.addEventListener('click', () => {
+        this._addEmptyLocation();
+      });
+    }
+  }
+
+  _addEmptyLocation() {
+    const config = { ...this._config };
+    config.location_colors = config.location_colors || [];
+    config.location_colors.push({ zone: '', color: '#3498db' });
+    this._config = config;
+    this._render();
+    this._valueChanged();
+  }
+
+  _updateLocationColor(index, zone, color) {
+    const config = { ...this._config };
+    config.location_colors = config.location_colors || [];
+    if (config.location_colors[index]) {
+      config.location_colors[index] = { zone, color };
+    }
+    this._config = config;
+    this._valueChanged();
+  }
+
+  _removeLocation(index) {
+    const config = { ...this._config };
+    config.location_colors = config.location_colors || [];
+    config.location_colors.splice(index, 1);
+    this._config = config;
+    this._render();
+    this._valueChanged();
   }
 
   _valueChanged() {
@@ -318,6 +417,8 @@ class PersonDetailsCardEditor extends HTMLElement {
       return el ? el.value : '';
     };
 
+    const config = { ...this._config };
+
     const newConfig = {
       type: 'custom:person-details-card',
       entity: getVal('input_entity'),
@@ -326,7 +427,8 @@ class PersonDetailsCardEditor extends HTMLElement {
         battery_state: getVal('input_battery_state'),
         wifi: getVal('input_wifi'),
         proximity: getVal('input_proximity')
-      }
+      },
+      location_colors: config.location_colors || []
     };
 
     this._config = newConfig;
