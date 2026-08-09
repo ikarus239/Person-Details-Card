@@ -25,19 +25,25 @@ class PersonDetailsCard extends HTMLElement {
     const bildUrl = personDaten.attributes.entity_picture;
     const name = personDaten.attributes.friendly_name;
 
-    // Variablen aus der Dashboard-Konfiguration auslesen (Batterie, WLAN, Proximity)
+// Variablen aus der Dashboard-Konfiguration auslesen
     const vars = this.config.variables || {};
     
     // 1. Batterie-Daten auslesen
     let batteryLvl = "–";
     let batteryColor = "#77c66e";
     let batteryIcon = "mdi:battery";
+    
     if (vars.battery_level && hass.states[vars.battery_level]) {
       batteryLvl = hass.states[vars.battery_level].state;
       const numLvl = parseFloat(batteryLvl);
-      if (numLvl < 10) batteryColor = "#ef4f1a";
-      else if (numLvl < 25) batteryColor = "#ffa500";
+      if (!isNaN(numLvl)) {
+        if (numLvl < 10) batteryColor = "#ef4f1a";
+        else if (numLvl < 25) batteryColor = "#ffa500";
+      }
+    } else {
+      batteryLvl = "Err (Var)"; // Zeigt an, wenn die Variable in YAML fehlt
     }
+
     if (vars.battery_state && hass.states[vars.battery_state]) {
       if (hass.states[vars.battery_state].state === 'charging') {
         batteryIcon = "mdi:battery-charging";
@@ -49,17 +55,24 @@ class PersonDetailsCard extends HTMLElement {
     let wifiIcon = "mdi:wifi-off";
     if (vars.wifi && hass.states[vars.wifi]) {
       const ssid = hass.states[vars.wifi].state;
-      if (ssid && ssid !== "unknown" && ssid !== "unavailable") {
+      if (ssid && ssid !== "unknown" && ssid !== "unavailable" && ssid !== "None") {
         wifiText = ssid;
         wifiIcon = "mdi:wifi";
+      } else {
+        wifiText = "Offline";
       }
+    } else {
+      wifiText = "Err (Var)";
     }
 
     // 3. Proximity (Entfernung) auslesen
     let proximityText = "–";
     if (vars.proximity && hass.states[vars.proximity]) {
-      const d = parseFloat(hass.states[vars.proximity].state);
-      proximityText = isNaN(d) ? "–" : (d / 1000).toFixed(1) + " km";
+      const rawVal = hass.states[vars.proximity].state;
+      const d = parseFloat(rawVal);
+      proximityText = isNaN(d) ? rawVal : (d / 1000).toFixed(1) + " km";
+    } else {
+      proximityText = "Err (Var)";
     }
 
     // Rahmenfarbe bestimmen
