@@ -3,7 +3,6 @@ class PersonDetailsCard extends HTMLElement {
     super();
     this.attachShadow({ mode: 'open' }); 
     this._renderedCard = false;
-    this._pressTimer = null;
   }
 
   setConfig(config) {
@@ -30,7 +29,7 @@ class PersonDetailsCard extends HTMLElement {
   }
 
   static getStubConfig() {
-    return { entity: "person.rudolf" };
+    return {};
   }
 
   set hass(hass) {
@@ -45,7 +44,6 @@ class PersonDetailsCard extends HTMLElement {
 
     const status = personDaten.state;
     const bildUrl = personDaten.attributes.entity_picture;
-
     const vars = this.config.variables || {};
     
     // 1. Batterie-Logik
@@ -104,7 +102,6 @@ class PersonDetailsCard extends HTMLElement {
       proximityText = isNaN(d) ? rawVal : (d / 1000).toFixed(1) + " km";
     }
 
-    // Dynamische Rahmenfarbe anhand der Konfiguration
     let rahmenFarbe = "#dedede";
     const locationColors = this.config.location_colors || [];
     const matchedLocation = locationColors.find(item => item.zone === status);
@@ -132,6 +129,7 @@ class PersonDetailsCard extends HTMLElement {
             align-items: center;
             color: white;
             font-family: inherit;
+            cursor: pointer;
           }
 
           .profilbild {
@@ -179,7 +177,7 @@ class PersonDetailsCard extends HTMLElement {
           }
         </style>
 
-        <ha-card>
+        <ha-card id="main-card">
           <img class="profilbild" alt="Profilbild">
           
           <div class="details">
@@ -204,7 +202,7 @@ class PersonDetailsCard extends HTMLElement {
       `;
 
       this._renderedCard = true;
-      this._attachPhotoListeners();
+      this._attachActionListeners();
     }
 
     const imgEl = this.shadowRoot.querySelector('.profilbild');
@@ -235,51 +233,79 @@ class PersonDetailsCard extends HTMLElement {
     proximityTextEl.textContent = proximityText;
   }
 
-  _attachPhotoListeners() {
+  _attachActionListeners() {
     const imgEl = this.shadowRoot.querySelector('.profilbild');
-    if (!imgEl) return;
+    const cardEl = this.shadowRoot.getElementById('main-card');
 
-    const clearTimer = () => {
-      if (this._pressTimer) {
-        clearTimeout(this._pressTimer);
-        this._pressTimer = null;
-      }
+    const bindTarget = (targetEl, targetName) => {
+      if (!targetEl) return;
+      let pressTimer = null;
+      let clickCount = 0;
+      let clickTimer = null;
+
+      const clearAll = () => {
+        if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; }
+        if (clickTimer) { clearTimeout(clickTimer); clickTimer = null; }
+      };
+
+      targetEl.addEventListener('pointerdown', (e) => {
+        e.stopPropagation();
+        clearAll();
+        pressTimer = setTimeout(() => {
+          pressTimer = null;
+          this._executeAction('hold_action', targetName);
+        }, 600);
+      });
+
+      targetEl.addEventListener('pointerup', (e) => {
+        e.stopPropagation();
+        if (pressTimer) {
+          clearAll();
+          clickCount++;
+          if (clickCount === 1) {
+            clickTimer = setTimeout(() => {
+              clickCount = 0;
+              this._executeAction('tap_action', targetName);
+            }, 250);
+          } else if (clickCount === 2) {
+            clearAll();
+            clickCount = 0;
+            this._executeAction('double_tap_action', targetName);
+          }
+        }
+      });
+
+      targetEl.addEventListener('pointercancel', clearAll);
+      targetEl.addEventListener('pointerleave', clearAll);
     };
 
-    imgEl.addEventListener('pointerdown', (e) => {
-      clearTimer();
-      this._pressTimer = setTimeout(() => {
-        this._pressTimer = null;
-        this._executeAction('hold_action');
-      }, 600); // 600ms Gedrückt halten
-    });
-
-    imgEl.addEventListener('pointerup', (e) => {
-      if (this._pressTimer) {
-        clearTimer();
-        this._executeAction('tap_action');
-      }
-    });
-
-    imgEl.addEventListener('pointerleave', clearTimer);
-    imgEl.addEventListener('pointercancel', clearTimer);
+    bindTarget(imgEl, 'icon');
+    bindTarget(cardEl, 'card');
   }
 
-  _executeAction(actionType) {
+  _executeAction(actionType, targetName) {
     const actions = this.config.actions || {};
-    // Standardmäßig öffnen wir bei Tap & Hold den Mehr-Informationen-Dialog
-    const defaultAction = 'more-info';
-    const action = actions[actionType] !== undefined ? actions[actionType] : defaultAction;
+    const targetActions = actions[targetName] || {};
+    const actionSetting = targetActions[actionType] || 'default';
 
-    if (action === 'more-info') {
+    let finalAction = actionSetting;
+    if (actionSetting === 'default') {
+      finalAction = (targetName === 'icon') ? 'more-info' : 'none';
+    }
+
+    if (finalAction === 'more-info') {
       const event = new CustomEvent("hass-more-info", {
         detail: { entityId: this.config.entity },
         bubbles: true,
         composed: true,
       });
       this.dispatchEvent(event);
+    } else if (finalAction === 'navigate' && targetActions[`${actionType}_path`]) {
+      history.pushState(null, '', targetActions[`${actionType}_path`]);
+      window.dispatchEvent(new Event('location-change'));
+    } else if (finalAction === 'url' && targetActions[`${actionType}_url`]) {
+      window.open(targetActions[`${actionType}_url`], '_blank');
     }
-    // 'none' tut bewusst nichts
   }
 }
 
@@ -295,7 +321,8 @@ class PersonDetailsCardEditor extends HTMLElement {
     this._initialized = false;
     this._locationsExpanded = false;
     this._sensorsExpanded = false;
-    this._actionsExpanded = false;
+    this._actionsIconExpanded = false;
+    this._actionsCardExpanded = false;
     this._selectedDevice = null;
   }
 
@@ -325,8 +352,11 @@ class PersonDetailsCardEditor extends HTMLElement {
     const sensorPanel = this.shadowRoot.querySelector('#sensors-panel');
     if (sensorPanel) this._sensorsExpanded = sensorPanel.expanded;
 
-    const actionPanel = this.shadowRoot.querySelector('#actions-panel');
-    if (actionPanel) this._actionsExpanded = actionPanel.expanded;
+    const actIconPanel = this.shadowRoot.querySelector('#actions-icon-panel');
+    if (actIconPanel) this._actionsIconExpanded = actIconPanel.expanded;
+
+    const actCardPanel = this.shadowRoot.querySelector('#actions-card-panel');
+    if (actCardPanel) this._actionsCardExpanded = actCardPanel.expanded;
 
     let allZones = ['home', 'not_home'];
     if (this._hass && this._hass.states) {
@@ -342,6 +372,8 @@ class PersonDetailsCardEditor extends HTMLElement {
     const config = this._config;
     const locationColors = config.location_colors || [];
     const actions = config.actions || {};
+    const iconActions = actions.icon || {};
+    const cardActions = actions.card || {};
 
     let locationRowsHtml = '';
     locationColors.forEach((item, index) => {
@@ -357,6 +389,17 @@ class PersonDetailsCardEditor extends HTMLElement {
         </div>
       `;
     });
+
+    const renderActionOptions = (currentVal, isIcon) => {
+      const defText = isIcon ? "Standard (Detailansicht)" : "Standard (Nichts)";
+      return `
+        <option value="default" ${!currentVal || currentVal === 'default' ? 'selected' : ''}>${defText}</option>
+        <option value="more-info" ${currentVal === 'more-info' ? 'selected' : ''}>Detailansicht</option>
+        <option value="navigate" ${currentVal === 'navigate' ? 'selected' : ''}>Navigieren</option>
+        <option value="url" ${currentVal === 'url' ? 'selected' : ''}>URL</option>
+        <option value="none" ${currentVal === 'none' ? 'selected' : ''}>nichts</option>
+      `;
+    };
 
     this.shadowRoot.innerHTML = `
       <style>
@@ -492,23 +535,69 @@ class PersonDetailsCardEditor extends HTMLElement {
         <!-- Dynamischer Bereich für gefundene Geräte -->
         <div id="device-container"></div>
 
-        <!-- Foto-Aktionen Panel -->
-        <ha-expansion-panel id="actions-panel" header="Aktionen für Profilbild" ${this._actionsExpanded ? 'expanded' : ''}>
+        <!-- Tap action on icon Panel -->
+        <ha-expansion-panel id="actions-icon-panel" header="Tap action on icon" ${this._actionsIconExpanded ? 'expanded' : ''}>
           <div class="panel-content">
-            <div class="action-row">
-              <span class="action-label">Aktion beim Klicken (Tap)</span>
-              <select id="input_tap_action" class="action-select">
-                <option value="more-info" ${actions.tap_action === 'more-info' || !actions.tap_action ? 'selected' : ''}>Mehr Informationen (More-Info Dialog)</option>
-                <option value="none" ${actions.tap_action === 'none' ? 'selected' : ''}>Nichts tun</option>
-              </select>
-            </div>
-            <div class="action-row">
-              <span class="action-label">Aktion beim Halten (Hold)</span>
-              <select id="input_hold_action" class="action-select">
-                <option value="more-info" ${actions.hold_action === 'more-info' || !actions.hold_action ? 'selected' : ''}>Mehr Informationen (More-Info Dialog)</option>
-                <option value="none" ${actions.hold_action === 'none' ? 'selected' : ''}>Nichts tun</option>
-              </select>
-            </div>
+            <ha-expansion-panel header="Tap action">
+              <div class="panel-content">
+                <div class="action-row">
+                  <select id="icon_tap_action" class="action-select">
+                    ${renderActionOptions(iconActions.tap_action, true)}
+                  </select>
+                </div>
+              </div>
+            </ha-expansion-panel>
+            <ha-expansion-panel header="Double tap action">
+              <div class="panel-content">
+                <div class="action-row">
+                  <select id="icon_double_tap_action" class="action-select">
+                    ${renderActionOptions(iconActions.double_tap_action, true)}
+                  </select>
+                </div>
+              </div>
+            </ha-expansion-panel>
+            <ha-expansion-panel header="Hold action">
+              <div class="panel-content">
+                <div class="action-row">
+                  <select id="icon_hold_action" class="action-select">
+                    ${renderActionOptions(iconActions.hold_action, true)}
+                  </select>
+                </div>
+              </div>
+            </ha-expansion-panel>
+          </div>
+        </ha-expansion-panel>
+
+        <!-- Tap action on card Panel -->
+        <ha-expansion-panel id="actions-card-panel" header="Tap action on card" ${this._actionsCardExpanded ? 'expanded' : ''}>
+          <div class="panel-content">
+            <ha-expansion-panel header="Tap action">
+              <div class="panel-content">
+                <div class="action-row">
+                  <select id="card_tap_action" class="action-select">
+                    ${renderActionOptions(cardActions.tap_action, false)}
+                  </select>
+                </div>
+              </div>
+            </ha-expansion-panel>
+            <ha-expansion-panel header="Double tap action">
+              <div class="panel-content">
+                <div class="action-row">
+                  <select id="card_double_tap_action" class="action-select">
+                    ${renderActionOptions(cardActions.double_tap_action, false)}
+                  </select>
+                </div>
+              </div>
+            </ha-expansion-panel>
+            <ha-expansion-panel header="Hold action">
+              <div class="panel-content">
+                <div class="action-row">
+                  <select id="card_hold_action" class="action-select">
+                    ${renderActionOptions(cardActions.hold_action, false)}
+                  </select>
+                </div>
+              </div>
+            </ha-expansion-panel>
           </div>
         </ha-expansion-panel>
 
@@ -598,15 +687,12 @@ class PersonDetailsCardEditor extends HTMLElement {
   }
 
   _attachActionListeners() {
-    const tapSelect = this.shadowRoot.getElementById('input_tap_action');
-    const holdSelect = this.shadowRoot.getElementById('input_hold_action');
-
-    if (tapSelect) {
-      tapSelect.addEventListener('change', () => this._valueChanged());
-    }
-    if (holdSelect) {
-      holdSelect.addEventListener('change', () => this._valueChanged());
-    }
+    ['icon_tap_action', 'icon_double_tap_action', 'icon_hold_action', 'card_tap_action', 'card_double_tap_action', 'card_hold_action'].forEach(id => {
+      const el = this.shadowRoot.getElementById(id);
+      if (el) {
+        el.addEventListener('change', () => this._valueChanged());
+      }
+    });
   }
 
   _updateDeviceContainer() {
@@ -794,8 +880,16 @@ class PersonDetailsCardEditor extends HTMLElement {
         proximity: getVal('input_proximity')
       },
       actions: {
-        tap_action: getVal('input_tap_action') || 'more-info',
-        hold_action: getVal('input_hold_action') || 'more-info'
+        icon: {
+          tap_action: getVal('icon_tap_action'),
+          double_tap_action: getVal('icon_double_tap_action'),
+          hold_action: getVal('icon_hold_action')
+        },
+        card: {
+          tap_action: getVal('card_tap_action'),
+          double_tap_action: getVal('card_double_tap_action'),
+          hold_action: getVal('card_hold_action')
+        }
       },
       location_colors: config.location_colors || []
     };
