@@ -1,14 +1,4 @@
 class PersonDetailsCard extends HTMLElement {
-  // Sagt Home Assistant, welcher Editor für diese Karte genutzt werden soll
-  static getConfigElement() {
-    return document.createElement('person-details-card-editor');
-  }
-
-  // Ein Standard-Beispiel für den Fall, dass jemand die Karte ganz neu hinzufügt
-  static getStubConfig() {
-    return { entity: "person.rudolf" };
-  }
-  
   constructor() {
     super();
     this.attachShadow({ mode: 'open' }); 
@@ -21,80 +11,101 @@ class PersonDetailsCard extends HTMLElement {
     this.config = config;
   }
 
+  // Teilt Home Assistant die Standard-Kartengröße (Höhe/Breite) mit
+  static getCardSize() {
+    return 6;
+  }
+
+  static getConfigElement() {
+    return document.createElement('person-details-card-editor');
+  }
+
+  static getStubConfig() {
+    return { entity: "person.rudolf" };
+  }
+
   set hass(hass) {
     const personId = this.config.entity;
     const personDaten = hass.states[personId];
 
     if (!personDaten) {
-      this.shadowRoot.innerHTML = `<ha-card><div style="padding: 20px;">Person nicht gefunden!</div></ha-card>`;
+      this.shadowRoot.innerHTML = `<ha-card><div style="padding: 20px; color: white;">Person nicht gefunden!</div></ha-card>`;
       return;
     }
 
-    // Grundlegende Daten der Person
     const status = personDaten.state;
     const bildUrl = personDaten.attributes.entity_picture;
     const name = personDaten.attributes.friendly_name;
 
-// Variablen aus der Dashboard-Konfiguration auslesen
     const vars = this.config.variables || {};
     
-    // 1. Batterie-Daten auslesen
+    // 1. Batterie-Logik (Farben & Icons nach Zustand)
     let batteryLvl = "–";
-    let batteryColor = "#77c66e";
+    let batteryColor = "#77c66e"; // Grün ab 30%
     let batteryIcon = "mdi:battery";
     
     if (vars.battery_level && hass.states[vars.battery_level]) {
       batteryLvl = hass.states[vars.battery_level].state;
       const numLvl = parseFloat(batteryLvl);
       if (!isNaN(numLvl)) {
-        if (numLvl < 10) batteryColor = "#ef4f1a";
-        else if (numLvl < 25) batteryColor = "#ffa500";
+        if (numLvl < 10) {
+          batteryColor = "#ef4f1a"; // Rot unter 10%
+        } else if (numLvl < 30) {
+          batteryColor = "#ffa500"; // Orange unter 30%
+        }
+
+        // Dynamisches Icon je nach Akkustand
+        if (numLvl >= 95) batteryIcon = "mdi:battery";
+        else if (numLvl <= 5) batteryIcon = "mdi:battery-outline";
+        else {
+          const rounded = Math.floor(numLvl / 10) * 10;
+          batteryIcon = `mdi:battery-${rounded}`;
+        }
       }
-    } else {
-      batteryLvl = "Err (Var)"; // Zeigt an, wenn die Variable in YAML fehlt
     }
 
+    // Ladezustand prüfen
     if (vars.battery_state && hass.states[vars.battery_state]) {
-      if (hass.states[vars.battery_state].state === 'charging') {
+      const bState = hass.states[vars.battery_state].state;
+      if (bState === 'charging' || bState === 'True' || bState === 'on') {
         batteryIcon = "mdi:battery-charging";
       }
     }
 
-    // 2. WLAN-Daten auslesen
+    // 2. WLAN-Logik (Grün = verbunden, Rot = getrennt)
     let wifiText = "–";
     let wifiIcon = "mdi:wifi-off";
+    let wifiColor = "#ef4f1a"; // Rot bei nicht verbunden
     if (vars.wifi && hass.states[vars.wifi]) {
       const ssid = hass.states[vars.wifi].state;
-      if (ssid && ssid !== "unknown" && ssid !== "unavailable" && ssid !== "None") {
+      if (ssid && ssid !== "unknown" && ssid !== "unavailable" && ssid !== "None" && ssid !== "" && ssid !== "Off") {
         wifiText = ssid;
         wifiIcon = "mdi:wifi";
+        wifiColor = "#77c66e"; // Grün bei Verbindung
       } else {
         wifiText = "Offline";
+        wifiIcon = "mdi:wifi-off";
+        wifiColor = "#ef4f1a";
       }
-    } else {
-      wifiText = "Err (Var)";
     }
 
-    // 3. Proximity (Entfernung) auslesen
+    // 3. Proximity (Entfernung)
     let proximityText = "–";
     if (vars.proximity && hass.states[vars.proximity]) {
       const rawVal = hass.states[vars.proximity].state;
       const d = parseFloat(rawVal);
       proximityText = isNaN(d) ? rawVal : (d / 1000).toFixed(1) + " km";
-    } else {
-      proximityText = "Err (Var)";
     }
 
-    // Rahmenfarbe bestimmen
+    // Rahmenfarbe für das Profilbild
     let rahmenFarbe = "#dedede";
     if (status === "home") rahmenFarbe = "#77c66e";
     if (status === "School") rahmenFarbe = "#964b00";
-    if (status === "Rosenbauer") rahmenFarbe = "00bfff";
+    if (status === "Rosenbauer") rahmenFarbe = "deepskyblue";
     if (status === "Hospital") rahmenFarbe = "#005f5f";
     if (status === "Fire Brigade") rahmenFarbe = "#b22222";
     if (status.startsWith("Familie")) rahmenFarbe = "#e2b007";
 
-    // Status-Icon bestimmen
     const icons = {
       home: "mdi:home",
       not_home: "mdi:home-export-outline",
@@ -105,7 +116,6 @@ class PersonDetailsCard extends HTMLElement {
     };
     const statusIcon = icons[status] || "mdi:map-marker-radius";
 
-    // HTML und CSS zusammenbauen
     this.shadowRoot.innerHTML = `
       <style>
         ha-card {
@@ -138,20 +148,25 @@ class PersonDetailsCard extends HTMLElement {
           grid-area: details;
           display: flex;
           flex-direction: column;
-          gap: 4px;
+          justify-content: center;
+          gap: 6px;
           font-size: 11px;
         }
 
         .zeile {
           display: flex;
-          align-items: center;
-          gap: 6px;
+          align-items: center; /* Zentriert Symbol und Text vertikal zueinander */
+          gap: 10px;          /* Schöner Abstand zwischen Symbol und Text */
         }
 
         ha-icon {
           width: 16px;
           height: 16px;
-          color: #888;
+        }
+
+        /* Alle Schriften bleiben zwingend weiß */
+        .text-white {
+          color: white !important;
         }
       </style>
 
@@ -160,20 +175,20 @@ class PersonDetailsCard extends HTMLElement {
         
         <div class="details">
           <div class="zeile">
-            <ha-icon icon="${statusIcon}"></ha-icon>
-            <span style="text-transform: capitalize; font-weight: bold;">${status}</span>
+            <ha-icon icon="${statusIcon}" style="color: white;"></ha-icon>
+            <span class="text-white" style="text-transform: capitalize; font-weight: bold;">${status}</span>
           </div>
           <div class="zeile">
-            <ha-icon icon="${batteryIcon}"></ha-icon>
-            <span style="color: ${batteryColor};">${batteryLvl}% battery</span>
+            <ha-icon icon="${batteryIcon}" style="color: ${batteryColor};"></ha-icon>
+            <span class="text-white">${batteryLvl}% battery</span>
           </div>
           <div class="zeile">
-            <ha-icon icon="${wifiIcon}"></ha-icon>
-            <span>${wifiText}</span>
+            <ha-icon icon="${wifiIcon}" style="color: ${wifiColor};"></ha-icon>
+            <span class="text-white">${wifiText}</span>
           </div>
           <div class="zeile">
-            <ha-icon icon="mdi:map-marker-distance"></ha-icon>
-            <span>${proximityText}</span>
+            <ha-icon icon="mdi:map-marker-distance" style="color: white;"></ha-icon>
+            <span class="text-white">${proximityText}</span>
           </div>
         </div>
       </ha-card>
@@ -184,7 +199,7 @@ class PersonDetailsCard extends HTMLElement {
 customElements.define('person-details-card', PersonDetailsCard);
 
 // ==========================================
-// DER NATIVE HA-EDITOR (MIT ECHTEN PICKERN)
+// DER NATIVE HA-EDITOR
 // ==========================================
 class PersonDetailsCardEditor extends HTMLElement {
   constructor() {
@@ -205,9 +220,7 @@ class PersonDetailsCardEditor extends HTMLElement {
   _render() {
     if (!this._config || !this._hass) return;
     
-    // Verhindern, dass der Editor bei jedem Tippen komplett neu gerendert wird und den Fokus verliert
     if (this._rendered) {
-      // Nur die Werte aktualisieren, falls sie sich von außen geändert haben
       const config = this._config;
       const variables = config.variables || {};
       
@@ -286,7 +299,6 @@ class PersonDetailsCardEditor extends HTMLElement {
 
     this._rendered = true;
 
-    // Auf Änderungen in den Pickern lauschen
     this.shadowRoot.querySelectorAll('ha-entity-picker').forEach(picker => {
       picker.addEventListener('value-changed', () => this._valueChanged());
     });
