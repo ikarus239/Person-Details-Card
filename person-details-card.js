@@ -11,13 +11,12 @@ class PersonDetailsCard extends HTMLElement {
     this.config = config;
   }
 
-  // Für ältere Ansichten (Masonry)
   static getCardSize() {
     return 6;
   }
 
-  // NEU: Zwingt das moderne Dashboard (Sections View) dazu, standardmäßig 6 Spalten (halbe Breite) zu nutzen
-  static getGridOptions() {
+  // WICHTIG: Als Instanz-Methode (ohne static), damit HA die Spaltenbreite von 6 behält!
+  getGridOptions() {
     return {
       columns: 6,
       min_columns: 3,
@@ -52,7 +51,7 @@ class PersonDetailsCard extends HTMLElement {
     
     // 1. Batterie-Logik
     let batteryLvl = "–";
-    let batteryColor = "#77c66e"; // Grün ab 30%
+    let batteryColor = "#77c66e"; 
     let batteryIcon = "mdi:battery";
     
     if (vars.battery_level && hass.states[vars.battery_level]) {
@@ -60,9 +59,9 @@ class PersonDetailsCard extends HTMLElement {
       const numLvl = parseFloat(batteryLvl);
       if (!isNaN(numLvl)) {
         if (numLvl < 10) {
-          batteryColor = "#ef4f1a"; // Rot unter 10%
+          batteryColor = "#ef4f1a"; 
         } else if (numLvl < 30) {
-          batteryColor = "#ffa500"; // Orange unter 30%
+          batteryColor = "#ffa500"; 
         }
 
         if (numLvl >= 95) batteryIcon = "mdi:battery";
@@ -158,14 +157,14 @@ class PersonDetailsCard extends HTMLElement {
           display: flex;
           flex-direction: column;
           justify-content: center;
-          gap: 8px;
+          gap: 10px;
           font-size: 11px;
         }
 
         .zeile {
           display: flex;
           align-items: center; /* Perfekte vertikale Zentrierung */
-          gap: 20px;          /* Um 100% vergrößerter Abstand (vorher 10px) */
+          gap: 30px;          /* Deutlich erweiterter Abstand (+100%) */
         }
 
         ha-icon {
