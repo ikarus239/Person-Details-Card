@@ -127,7 +127,6 @@ class PersonDetailsCard extends HTMLElement {
     this.shadowRoot.innerHTML = `
       <style>
         ha-card {
-          border-radius: 10px !important;
           padding: 15px;
           display: grid;
           grid-template-columns: 2fr 3fr;
