@@ -118,7 +118,6 @@ class PersonDetailsCard extends HTMLElement {
     };
     const statusIcon = icons[status] || "mdi:map-marker-radius";
 
-    // Grundstruktur einmalig anlegen (ohne unsichere direkte String-Injektion von Daten)
     if (!this._renderedCard) {
       this.shadowRoot.innerHTML = `
         <style>
@@ -198,7 +197,6 @@ class PersonDetailsCard extends HTMLElement {
       this._renderedCard = true;
     }
 
-    // Sichere Zuweisung per Eigenschaften und textContent
     const imgEl = this.shadowRoot.querySelector('.profilbild');
     if (bildUrl) imgEl.src = bildUrl;
     imgEl.style.borderColor = rahmenFarbe;
@@ -231,7 +229,7 @@ class PersonDetailsCard extends HTMLElement {
 customElements.define('person-details-card', PersonDetailsCard);
 
 // ==========================================
-// DER NATIVE HA-EDITOR (XSS-sicher)
+// DER NATIVE HA-EDITOR (Mit automatischer Geräteerkennung)
 // ==========================================
 class PersonDetailsCardEditor extends HTMLElement {
   constructor() {
@@ -257,6 +255,9 @@ class PersonDetailsCardEditor extends HTMLElement {
     pickers.forEach(picker => {
       picker.hass = hass;
     });
+    if (this._initialized) {
+      this._updateDeviceContainer();
+    }
   }
 
   _render() {
@@ -319,6 +320,30 @@ class PersonDetailsCardEditor extends HTMLElement {
           flex-direction: column;
           gap: 16px;
           padding: 12px 8px;
+        }
+        .device-info-box {
+          background: var(--card-background-color, var(--secondary-background-color));
+          padding: 10px 14px;
+          border-radius: 6px;
+          border: 1px solid var(--divider-color);
+          font-size: 13px;
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
+        }
+        .error-msg {
+          color: var(--error-color, #db4437);
+          font-weight: 500;
+        }
+        .device-select {
+          background: var(--primary-background-color);
+          color: var(--primary-text-color);
+          border: 1px solid var(--divider-color);
+          border-radius: 4px;
+          padding: 6px 10px;
+          font-size: 13px;
+          width: 100%;
+          outline: none;
         }
         .location-container {
           display: flex;
@@ -395,6 +420,9 @@ class PersonDetailsCardEditor extends HTMLElement {
         <!-- Person Entität -->
         <ha-entity-picker id="input_entity"></ha-entity-picker>
 
+        <!-- Dynamischer Bereich für gefundene Geräte -->
+        <div id="device-container"></div>
+
         <!-- Sensoren Panel -->
         <ha-expansion-panel id="sensors-panel" header="Sensoren" ${this._sensorsExpanded ? 'expanded' : ''}>
           <div class="panel-content">
@@ -421,7 +449,6 @@ class PersonDetailsCardEditor extends HTMLElement {
 
     this._initialized = true;
 
-    // Optionen sicher per DOM-API befüllen (schützt vor injizierten Skripten in Zonennamen)
     this.shadowRoot.querySelectorAll('.location-row').forEach((row, rowIndex) => {
       const item = locationColors[rowIndex];
       const select = row.querySelector('.zone-select');
@@ -450,7 +477,12 @@ class PersonDetailsCardEditor extends HTMLElement {
         if (this._hass) picker.hass = this._hass;
         picker.value = val || '';
         picker.removeEventListener('value-changed', picker._boundHandler);
-        picker._boundHandler = () => this._valueChanged();
+        picker._boundHandler = (e) => {
+          if (id === 'input_entity') {
+            this._updateDeviceContainer();
+          }
+          this._valueChanged();
+        };
         picker.addEventListener('value-changed', picker._boundHandler);
       }
     };
@@ -462,6 +494,107 @@ class PersonDetailsCardEditor extends HTMLElement {
     setupPicker('input_proximity', 'Proximity Sensor (Entfernung)', ['sensor'], variables.proximity);
 
     this._attachLocationListeners();
+    this._updateDeviceContainer();
+  }
+
+  _updateDeviceContainer() {
+    const container = this.shadowRoot.getElementById('device-container');
+    if (!container || !this._hass) return;
+
+    container.innerHTML = '';
+
+    const personPicker = this.shadowRoot.getElementById('input_entity');
+    const personId = personPicker ? personPicker.value : this._config.entity;
+
+    if (!personId || !this._hass.states[personId]) return;
+
+    const personState = this._hass.states[personId];
+    // Geräte aus den Attributen der Person auslesen
+    const devices = personState.attributes.device_trackers || (personState.attributes.source ? [personState.attributes.source] : []);
+
+    const box = document.createElement('div');
+    box.className = 'device-info-box';
+
+    if (!devices || devices.length === 0) {
+      const err = document.createElement('span');
+      err.className = 'error-msg';
+      err.textContent = 'Kein Gerät vorhanden, bitte in den Einstellungen eintragen!';
+      box.appendChild(err);
+    } else if (devices.length === 1) {
+      const info = document.createElement('span');
+      info.textContent = `Verknüpftes Gerät: ${devices[0]}`;
+      box.appendChild(info);
+      this._autoFillSensors(devices[0]);
+    } else {
+      const label = document.createElement('span');
+      label.textContent = 'Mehrere Geräte vorhanden, bitte auswählen:';
+      box.appendChild(label);
+
+      const select = document.createElement('select');
+      select.className = 'device-select';
+
+      const defaultOpt = document.createElement('option');
+      defaultOpt.value = '';
+      defaultOpt.textContent = '-- Gerät wählen --';
+      select.appendChild(defaultOpt);
+
+      devices.forEach(dev => {
+        const opt = document.createElement('option');
+        opt.value = dev;
+        opt.textContent = dev;
+        if (this._selectedDevice === dev) {
+          opt.selected = true;
+        }
+        select.appendChild(opt);
+      });
+
+      select.addEventListener('change', (e) => {
+        this._selectedDevice = e.target.value;
+        if (this._selectedDevice) {
+          this._autoFillSensors(this._selectedDevice);
+        }
+      });
+
+      box.appendChild(select);
+    }
+
+    container.appendChild(box);
+  }
+
+  _autoFillSensors(deviceEntityId) {
+    if (!deviceEntityId || !this._hass || !this._hass.states) return;
+    
+    // Extrahiere den Basis-Namen (z.B. device_tracker.rudolf_handy -> rudolf_handy)
+    const deviceObjId = deviceEntityId.replace('device_tracker.', '');
+
+    const findMatchingSensor = (suffixes) => {
+      for (const suffix of suffixes) {
+        const candidate = `sensor.${deviceObjId}_${suffix}`;
+        if (this._hass.states[candidate]) {
+          return candidate;
+        }
+      }
+      return '';
+    };
+
+    const batteryLevel = findMatchingSensor(['battery_level', 'battery']);
+    const batteryState = findMatchingSensor(['battery_state', 'charger_type', 'is_charging']);
+    const wifi = findMatchingSensor(['wifi_connection', 'ssid', 'connection_type']);
+
+    if (batteryLevel) {
+      const el = this.shadowRoot.getElementById('input_battery_level');
+      if (el) el.value = batteryLevel;
+    }
+    if (batteryState) {
+      const el = this.shadowRoot.getElementById('input_battery_state');
+      if (el) el.value = batteryState;
+    }
+    if (wifi) {
+      const el = this.shadowRoot.getElementById('input_wifi');
+      if (el) el.value = wifi;
+    }
+
+    this._valueChanged();
   }
 
   _updateValues() {
@@ -478,6 +611,8 @@ class PersonDetailsCardEditor extends HTMLElement {
     setVal('input_battery_state', variables.battery_state);
     setVal('input_wifi', variables.wifi);
     setVal('input_proximity', variables.proximity);
+    
+    this._updateDeviceContainer();
   }
 
   _attachLocationListeners() {
