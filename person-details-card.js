@@ -2,6 +2,7 @@ class PersonDetailsCard extends HTMLElement {
   constructor() {
     super();
     this.attachShadow({ mode: 'open' }); 
+    this._renderedCard = false;
   }
 
   setConfig(config) {
@@ -42,7 +43,6 @@ class PersonDetailsCard extends HTMLElement {
 
     const status = personDaten.state;
     const bildUrl = personDaten.attributes.entity_picture;
-    const name = personDaten.attributes.friendly_name;
 
     const vars = this.config.variables || {};
     
@@ -118,88 +118,120 @@ class PersonDetailsCard extends HTMLElement {
     };
     const statusIcon = icons[status] || "mdi:map-marker-radius";
 
-    this.shadowRoot.innerHTML = `
-      <style>
-        ha-card {
-          padding: 15px;
-          display: grid;
-          grid-template-columns: 2fr 3fr;
-          grid-template-areas: "icon details";
-          gap: 25px;
-          align-items: center;
-          color: white;
-          font-family: inherit;
-        }
+    // Grundstruktur einmalig anlegen (ohne unsichere direkte String-Injektion von Daten)
+    if (!this._renderedCard) {
+      this.shadowRoot.innerHTML = `
+        <style>
+          ha-card {
+            padding: 15px;
+            display: grid;
+            grid-template-columns: 2fr 3fr;
+            grid-template-areas: "icon details";
+            gap: 25px;
+            align-items: center;
+            color: white;
+            font-family: inherit;
+          }
 
-        .profilbild {
-          grid-area: icon;
-          width: 100%;
-          aspect-ratio: 1/1;
-          border-radius: 10px;
-          border: 5px solid ${rahmenFarbe};
-          object-fit: cover;
-          box-sizing: border-box;
-        }
+          .profilbild {
+            grid-area: icon;
+            width: 100%;
+            aspect-ratio: 1/1;
+            border-radius: 10px;
+            border: 5px solid #dedede;
+            object-fit: cover;
+            box-sizing: border-box;
+          }
 
-        .details {
-          grid-area: details;
-          display: flex;
-          flex-direction: column;
-          justify-content: center;
-          gap: 10px;
-          font-size: 11px;
-        }
+          .details {
+            grid-area: details;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            gap: 10px;
+            font-size: 11px;
+          }
 
-        .zeile {
-          display: flex;
-          align-items: center;
-          gap: 15px;
-        }
+          .zeile {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+          }
 
-        ha-icon {
-          width: 16px;
-          height: 16px;
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          flex-shrink: 0;
-        }
+          ha-icon {
+            width: 16px;
+            height: 16px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+          }
 
-        .text-white {
-          color: white !important;
-        }
-      </style>
+          .text-white {
+            color: white !important;
+          }
+        </style>
 
-      <ha-card>
-        <img class="profilbild" src="${bildUrl}" alt="Profilbild">
-        
-        <div class="details">
-          <div class="zeile">
-            <ha-icon icon="${statusIcon}" style="color: white;"></ha-icon>
-            <span class="text-white" style="text-transform: capitalize; font-weight: bold;">${status}</span>
+        <ha-card>
+          <img class="profilbild" alt="Profilbild">
+          
+          <div class="details">
+            <div class="zeile">
+              <ha-icon id="status-icon" style="color: white;"></ha-icon>
+              <span id="status-text" class="text-white" style="text-transform: capitalize; font-weight: bold;"></span>
+            </div>
+            <div class="zeile">
+              <ha-icon id="battery-icon"></ha-icon>
+              <span id="battery-text" class="text-white"></span>
+            </div>
+            <div class="zeile">
+              <ha-icon id="wifi-icon"></ha-icon>
+              <span id="wifi-text" class="text-white"></span>
+            </div>
+            <div class="zeile">
+              <ha-icon icon="mdi:map-marker-distance" style="color: white;"></ha-icon>
+              <span id="proximity-text" class="text-white"></span>
+            </div>
           </div>
-          <div class="zeile">
-            <ha-icon icon="${batteryIcon}" style="color: ${batteryColor};"></ha-icon>
-            <span class="text-white">${batteryLvl}% battery</span>
-          </div>
-          <div class="zeile">
-            <ha-icon icon="${wifiIcon}" style="color: ${wifiColor};"></ha-icon>
-            <span class="text-white">${wifiText}</span>
-          </div>
-          <div class="zeile">
-            <ha-icon icon="mdi:map-marker-distance" style="color: white;"></ha-icon>
-            <span class="text-white">${proximityText}</span>
-          </div>
-        </div>
-      </ha-card>
-    `;
+        </ha-card>
+      `;
+      this._renderedCard = true;
+    }
+
+    // Sichere Zuweisung per Eigenschaften und textContent
+    const imgEl = this.shadowRoot.querySelector('.profilbild');
+    if (bildUrl) imgEl.src = bildUrl;
+    imgEl.style.borderColor = rahmenFarbe;
+
+    const statusIconEl = this.shadowRoot.getElementById('status-icon');
+    statusIconEl.setAttribute('icon', statusIcon);
+
+    const statusTextEl = this.shadowRoot.getElementById('status-text');
+    statusTextEl.textContent = status;
+
+    const batteryIconEl = this.shadowRoot.getElementById('battery-icon');
+    batteryIconEl.setAttribute('icon', batteryIcon);
+    batteryIconEl.style.color = batteryColor;
+
+    const batteryTextEl = this.shadowRoot.getElementById('battery-text');
+    batteryTextEl.textContent = `${batteryLvl}% battery`;
+
+    const wifiIconEl = this.shadowRoot.getElementById('wifi-icon');
+    wifiIconEl.setAttribute('icon', wifiIcon);
+    wifiIconEl.style.color = wifiColor;
+
+    const wifiTextEl = this.shadowRoot.getElementById('wifi-text');
+    wifiTextEl.textContent = wifiText;
+
+    const proximityTextEl = this.shadowRoot.getElementById('proximity-text');
+    proximityTextEl.textContent = proximityText;
   }
 }
 
 customElements.define('person-details-card', PersonDetailsCard);
 
 // ==========================================
-// DER NATIVE HA-EDITOR
+// DER NATIVE HA-EDITOR (XSS-sicher)
 // ==========================================
 class PersonDetailsCardEditor extends HTMLElement {
   constructor() {
@@ -230,14 +262,12 @@ class PersonDetailsCardEditor extends HTMLElement {
   _render() {
     if (!this._config) return;
 
-    // Zustand der Expansionspanels vor dem Neurendern sichern
     const locPanel = this.shadowRoot.querySelector('#locations-panel');
     if (locPanel) this._locationsExpanded = locPanel.expanded;
 
     const sensorPanel = this.shadowRoot.querySelector('#sensors-panel');
     if (sensorPanel) this._sensorsExpanded = sensorPanel.expanded;
 
-    // Verfügbare Zonen aus Home Assistant auslesen
     let allZones = ['home', 'not_home'];
     if (this._hass && this._hass.states) {
       const zones = Object.keys(this._hass.states)
@@ -250,22 +280,13 @@ class PersonDetailsCardEditor extends HTMLElement {
     }
 
     const config = this._config;
-    const variables = config.variables || {};
     const locationColors = config.location_colors || [];
 
     let locationRowsHtml = '';
     locationColors.forEach((item, index) => {
-      let optionsHtml = `<option value="">-- Ort wählen --</option>`;
-      allZones.forEach(z => {
-        const selected = item.zone === z ? 'selected' : '';
-        optionsHtml += `<option value="${z}" ${selected}>${z}</option>`;
-      });
-
       locationRowsHtml += `
         <div class="location-row" data-index="${index}">
-          <select class="zone-select">
-            ${optionsHtml}
-          </select>
+          <select class="zone-select"></select>
           <div class="color-picker-wrapper">
             <input type="color" class="color-input" value="${item.color || '#3498db'}">
           </div>
@@ -371,7 +392,7 @@ class PersonDetailsCardEditor extends HTMLElement {
       </style>
 
       <div class="card-config">
-        <!-- Person Entität (außerhalb der Panels) -->
+        <!-- Person Entität -->
         <ha-entity-picker id="input_entity"></ha-entity-picker>
 
         <!-- Sensoren Panel -->
@@ -399,6 +420,27 @@ class PersonDetailsCardEditor extends HTMLElement {
     `;
 
     this._initialized = true;
+
+    // Optionen sicher per DOM-API befüllen (schützt vor injizierten Skripten in Zonennamen)
+    this.shadowRoot.querySelectorAll('.location-row').forEach((row, rowIndex) => {
+      const item = locationColors[rowIndex];
+      const select = row.querySelector('.zone-select');
+      
+      const defaultOpt = document.createElement('option');
+      defaultOpt.value = "";
+      defaultOpt.textContent = "-- Ort wählen --";
+      select.appendChild(defaultOpt);
+
+      allZones.forEach(z => {
+        const opt = document.createElement('option');
+        opt.value = z;
+        opt.textContent = z;
+        if (item && item.zone === z) {
+          opt.selected = true;
+        }
+        select.appendChild(opt);
+      });
+    });
 
     const setupPicker = (id, label, includeDomains, val) => {
       const picker = this.shadowRoot.getElementById(id);
