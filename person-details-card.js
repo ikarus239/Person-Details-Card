@@ -66,7 +66,7 @@ class PersonDetailsCard extends HTMLElement {
     let rahmenFarbe = "#dedede";
     if (status === "home") rahmenFarbe = "#77c66e";
     if (status === "School") rahmenFarbe = "#964b00";
-    if (status === "Rosenbauer") rahmenFarbe = "deepskyblue";
+    if (status === "Rosenbauer") rahmenFarbe = "00bfff";
     if (status === "Hospital") rahmenFarbe = "#005f5f";
     if (status === "Fire Brigade") rahmenFarbe = "#b22222";
     if (status.startsWith("Familie")) rahmenFarbe = "#e2b007";
