@@ -188,17 +188,25 @@ customElements.define('person-details-card', PersonDetailsCard);
 // ==========================================
 class PersonDetailsCardEditor extends HTMLElement {
   setConfig(config) {
-    this._config = config;
+    // Falls noch keine Konfiguration da ist, nehmen wir ein leeres Paket, damit nichts abstürzt
+    this._config = config || {};
+    if (this._hass) {
+      this._render();
+    }
   }
 
   set hass(hass) {
     this._hass = hass;
-    if (!this._content) {
+    if (this._config && !this._content) {
       this._render();
     }
   }
 
   _render() {
+    // Falls _config wider Erwarten immer noch leer ist, fangen wir es hier ab
+    const config = this._config || {};
+    const variables = config.variables || {};
+
     this.innerHTML = `
       <div style="padding: 10px; display: flex; flex-direction: column; gap: 12px;">
         <p style="margin: 0; font-weight: bold; color: var(--primary-text-color);">Personen-Karte Konfiguration</p>
@@ -206,7 +214,7 @@ class PersonDetailsCardEditor extends HTMLElement {
         <!-- Eingabe für die Person -->
         <div>
           <label style="display: block; margin-bottom: 4px; font-size: 12px;">Person Entität (z.B. person.rudolf)</label>
-          <input type="text" id="input_entity" value="${this._config.entity || ''}" style="width: 100%; padding: 8px; box-sizing: border-box;" />
+          <input type="text" id="input_entity" value="${config.entity || ''}" style="width: 100%; padding: 8px; box-sizing: border-box;" />
         </div>
 
         <hr style="border: 0; border-top: 1px solid var(--divider-color); margin: 5px 0;">
@@ -214,29 +222,28 @@ class PersonDetailsCardEditor extends HTMLElement {
         <!-- Sensoren -->
         <div>
           <label style="display: block; margin-bottom: 4px; font-size: 12px;">Batterie Level Sensor</label>
-          <input type="text" id="input_battery_level" value="${this._config.variables?.battery_level || ''}" style="width: 100%; padding: 8px; box-sizing: border-box;" />
+          <input type="text" id="input_battery_level" value="${variables.battery_level || ''}" style="width: 100%; padding: 8px; box-sizing: border-box;" />
         </div>
 
         <div>
           <label style="display: block; margin-bottom: 4px; font-size: 12px;">Batterie State Sensor (Ladezustand)</label>
-          <input type="text" id="input_battery_state" value="${this._config.variables?.battery_state || ''}" style="width: 100%; padding: 8px; box-sizing: border-box;" />
+          <input type="text" id="input_battery_state" value="${variables.battery_state || ''}" style="width: 100%; padding: 8px; box-sizing: border-box;" />
         </div>
 
         <div>
           <label style="display: block; margin-bottom: 4px; font-size: 12px;">WLAN Sensor (SSID)</label>
-          <input type="text" id="input_wifi" value="${this._config.variables?.wifi || ''}" style="width: 100%; padding: 8px; box-sizing: border-box;" />
+          <input type="text" id="input_wifi" value="${variables.wifi || ''}" style="width: 100%; padding: 8px; box-sizing: border-box;" />
         </div>
 
         <div>
           <label style="display: block; margin-bottom: 4px; font-size: 12px;">Proximity Sensor (Entfernung)</label>
-          <input type="text" id="input_proximity" value="${this._config.variables?.proximity || ''}" style="width: 100%; padding: 8px; box-sizing: border-box;" />
+          <input type="text" id="input_proximity" value="${variables.proximity || ''}" style="width: 100%; padding: 8px; box-sizing: border-box;" />
         </div>
       </div>
     `;
 
     this._content = true;
 
-    // Wenn der Nutzer etwas ändert, schicken wir die Daten an Home Assistant zurück
     this.querySelectorAll('input').forEach(input => {
       input.addEventListener('input', () => this._valueChanged());
     });
@@ -256,7 +263,6 @@ class PersonDetailsCardEditor extends HTMLElement {
       }
     };
 
-    // Wir sagen Home Assistant, dass sich die Konfiguration geändert hat
     const event = new CustomEvent('config-changed', {
       detail: { config: newConfig },
       bubbles: true,
