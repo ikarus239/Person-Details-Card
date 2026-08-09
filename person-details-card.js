@@ -136,7 +136,7 @@ class PersonDetailsCard extends HTMLElement {
           display: grid;
           grid-template-columns: 2fr 3fr;
           grid-template-areas: "icon details";
-          gap: 12px;
+          gap: 24px;
           align-items: center;
           color: white;
           font-family: inherit;
@@ -164,7 +164,7 @@ class PersonDetailsCard extends HTMLElement {
         .zeile {
           display: flex;
           align-items: center; /* Perfekte vertikale Zentrierung */
-          gap: 30px;          /* Deutlich erweiterter Abstand (+100%) */
+          gap: 20px;          /* Deutlich erweiterter Abstand (+100%) */
         }
 
         ha-icon {
