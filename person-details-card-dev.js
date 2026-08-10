@@ -401,6 +401,32 @@ class PersonDetailsCardEditor extends HTMLElement {
       `;
     };
 
+    const renderActionSection = (prefix, labelText, currentActionData, isIcon) => {
+      const actVal = currentActionData.action || 'default';
+      const pathVal = currentActionData.path || '';
+      const urlVal = currentActionData.url || '';
+
+      return `
+        <ha-expansion-panel header="${labelText}">
+          <div class="panel-content">
+            <div class="action-row">
+              <select id="${prefix}_action" class="action-select action-dropdown" data-target="${prefix}">
+                ${renderActionOptions(actVal, isIcon)}
+              </select>
+            </div>
+            <div id="${prefix}_path_container" class="conditional-field" style="display: ${actVal === 'navigate' ? 'block' : 'none'};">
+              <div class="action-label" style="margin-bottom: 4px;">Navigationspfad / Dashboard</div>
+              <input type="text" id="${prefix}_path" class="action-input" value="${pathVal}" placeholder="/lovelace/dashboard oder /dashboard/ansicht">
+            </div>
+            <div id="${prefix}_url_container" class="conditional-field" style="display: ${actVal === 'url' ? 'block' : 'none'};">
+              <div class="action-label" style="margin-bottom: 4px;">Ziel-URL</div>
+              <input type="text" id="${prefix}_url" class="action-input" value="${urlVal}" placeholder="https://example.com">
+            </div>
+          </div>
+        </ha-expansion-panel>
+      `;
+    };
+
     this.shadowRoot.innerHTML = `
       <style>
         .card-config {
@@ -438,7 +464,7 @@ class PersonDetailsCardEditor extends HTMLElement {
           color: var(--error-color, #db4437);
           font-weight: 500;
         }
-        .device-select, .action-select {
+        .device-select, .action-select, .action-input {
           background: var(--primary-background-color);
           color: var(--primary-text-color);
           border: 1px solid var(--divider-color);
@@ -447,6 +473,7 @@ class PersonDetailsCardEditor extends HTMLElement {
           font-size: 13px;
           width: 100%;
           outline: none;
+          box-sizing: border-box;
         }
         .action-row {
           display: flex;
@@ -456,6 +483,9 @@ class PersonDetailsCardEditor extends HTMLElement {
         .action-label {
           font-size: 13px;
           font-weight: 500;
+        }
+        .conditional-field {
+          margin-top: 4px;
         }
         .location-container {
           display: flex;
@@ -529,79 +559,26 @@ class PersonDetailsCardEditor extends HTMLElement {
       </style>
 
       <div class="card-config">
-        <!-- Person Entität -->
         <ha-entity-picker id="input_entity"></ha-entity-picker>
 
-        <!-- Dynamischer Bereich für gefundene Geräte -->
         <div id="device-container"></div>
 
-        <!-- Tap action on icon Panel -->
         <ha-expansion-panel id="actions-icon-panel" header="Tap action on icon" ${this._actionsIconExpanded ? 'expanded' : ''}>
           <div class="panel-content">
-            <ha-expansion-panel header="Tap action">
-              <div class="panel-content">
-                <div class="action-row">
-                  <select id="icon_tap_action" class="action-select">
-                    ${renderActionOptions(iconActions.tap_action, true)}
-                  </select>
-                </div>
-              </div>
-            </ha-expansion-panel>
-            <ha-expansion-panel header="Double tap action">
-              <div class="panel-content">
-                <div class="action-row">
-                  <select id="icon_double_tap_action" class="action-select">
-                    ${renderActionOptions(iconActions.double_tap_action, true)}
-                  </select>
-                </div>
-              </div>
-            </ha-expansion-panel>
-            <ha-expansion-panel header="Hold action">
-              <div class="panel-content">
-                <div class="action-row">
-                  <select id="icon_hold_action" class="action-select">
-                    ${renderActionOptions(iconActions.hold_action, true)}
-                  </select>
-                </div>
-              </div>
-            </ha-expansion-panel>
+            ${renderActionSection('icon_tap', 'Tap action', { action: iconActions.tap_action, path: iconActions.tap_action_path, url: iconActions.tap_action_url }, true)}
+            ${renderActionSection('icon_double_tap', 'Double tap action', { action: iconActions.double_tap_action, path: iconActions.double_tap_action_path, url: iconActions.double_tap_action_url }, true)}
+            ${renderActionSection('icon_hold', 'Hold action', { action: iconActions.hold_action, path: iconActions.hold_action_path, url: iconActions.hold_action_url }, true)}
           </div>
         </ha-expansion-panel>
 
-        <!-- Tap action on card Panel -->
         <ha-expansion-panel id="actions-card-panel" header="Tap action on card" ${this._actionsCardExpanded ? 'expanded' : ''}>
           <div class="panel-content">
-            <ha-expansion-panel header="Tap action">
-              <div class="panel-content">
-                <div class="action-row">
-                  <select id="card_tap_action" class="action-select">
-                    ${renderActionOptions(cardActions.tap_action, false)}
-                  </select>
-                </div>
-              </div>
-            </ha-expansion-panel>
-            <ha-expansion-panel header="Double tap action">
-              <div class="panel-content">
-                <div class="action-row">
-                  <select id="card_double_tap_action" class="action-select">
-                    ${renderActionOptions(cardActions.double_tap_action, false)}
-                  </select>
-                </div>
-              </div>
-            </ha-expansion-panel>
-            <ha-expansion-panel header="Hold action">
-              <div class="panel-content">
-                <div class="action-row">
-                  <select id="card_hold_action" class="action-select">
-                    ${renderActionOptions(cardActions.hold_action, false)}
-                  </select>
-                </div>
-              </div>
-            </ha-expansion-panel>
+            ${renderActionSection('card_tap', 'Tap action', { action: cardActions.tap_action, path: cardActions.tap_action_path, url: cardActions.tap_action_url }, false)}
+            ${renderActionSection('card_double_tap', 'Double tap action', { action: cardActions.double_tap_action, path: cardActions.double_tap_action_path, url: cardActions.double_tap_action_url }, false)}
+            ${renderActionSection('card_hold', 'Hold action', { action: cardActions.hold_action, path: cardActions.hold_action_path, url: cardActions.hold_action_url }, false)}
           </div>
         </ha-expansion-panel>
 
-        <!-- Sensoren Panel -->
         <ha-expansion-panel id="sensors-panel" header="Sensoren" ${this._sensorsExpanded ? 'expanded' : ''}>
           <div class="panel-content">
             <ha-entity-picker id="input_battery_level"></ha-entity-picker>
@@ -611,7 +588,6 @@ class PersonDetailsCardEditor extends HTMLElement {
           </div>
         </ha-expansion-panel>
 
-        <!-- Orte & Rahmenfarben Panel -->
         <ha-expansion-panel id="locations-panel" header="Orte & Rahmenfarben" ${this._locationsExpanded ? 'expanded' : ''}>
           <div class="panel-content">
             <div class="location-container">
@@ -687,10 +663,28 @@ class PersonDetailsCardEditor extends HTMLElement {
   }
 
   _attachActionListeners() {
-    ['icon_tap_action', 'icon_double_tap_action', 'icon_hold_action', 'card_tap_action', 'card_double_tap_action', 'card_hold_action'].forEach(id => {
-      const el = this.shadowRoot.getElementById(id);
-      if (el) {
-        el.addEventListener('change', () => this._valueChanged());
+    const prefixes = ['icon_tap', 'icon_double_tap', 'icon_hold', 'card_tap', 'card_double_tap', 'card_hold'];
+    prefixes.forEach(prefix => {
+      const selectEl = this.shadowRoot.getElementById(`${prefix}_action`);
+      const pathContainer = this.shadowRoot.getElementById(`${prefix}_path_container`);
+      const urlContainer = this.shadowRoot.getElementById(`${prefix}_url_container`);
+      const pathInput = this.shadowRoot.getElementById(`${prefix}_path`);
+      const urlInput = this.shadowRoot.getElementById(`${prefix}_url`);
+
+      if (selectEl) {
+        selectEl.addEventListener('change', (e) => {
+          const val = e.target.value;
+          if (pathContainer) pathContainer.style.display = val === 'navigate' ? 'block' : 'none';
+          if (urlContainer) urlContainer.style.display = val === 'url' ? 'block' : 'none';
+          this._valueChanged();
+        });
+      }
+
+      if (pathInput) {
+        pathInput.addEventListener('input', () => this._valueChanged());
+      }
+      if (urlInput) {
+        urlInput.addEventListener('input', () => this._valueChanged());
       }
     });
   }
@@ -882,13 +876,25 @@ class PersonDetailsCardEditor extends HTMLElement {
       actions: {
         icon: {
           tap_action: getVal('icon_tap_action'),
+          tap_action_path: getVal('icon_tap_path'),
+          tap_action_url: getVal('icon_tap_url'),
           double_tap_action: getVal('icon_double_tap_action'),
-          hold_action: getVal('icon_hold_action')
+          double_tap_action_path: getVal('icon_double_tap_path'),
+          double_tap_action_url: getVal('icon_double_tap_url'),
+          hold_action: getVal('icon_hold_action'),
+          hold_action_path: getVal('icon_hold_path'),
+          hold_action_url: getVal('icon_hold_url')
         },
         card: {
           tap_action: getVal('card_tap_action'),
+          tap_action_path: getVal('card_tap_path'),
+          tap_action_url: getVal('card_tap_url'),
           double_tap_action: getVal('card_double_tap_action'),
-          hold_action: getVal('card_hold_action')
+          double_tap_action_path: getVal('card_double_tap_path'),
+          double_tap_action_url: getVal('card_double_tap_url'),
+          hold_action: getVal('card_hold_action'),
+          hold_action_path: getVal('card_hold_path'),
+          hold_action_url: getVal('card_hold_url')
         }
       },
       location_colors: config.location_colors || []
