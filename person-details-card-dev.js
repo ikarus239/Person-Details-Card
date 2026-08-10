@@ -286,25 +286,38 @@ class PersonDetailsCard extends HTMLElement {
   _executeAction(actionType, targetName) {
     const actions = this.config.actions || {};
     const targetActions = actions[targetName] || {};
-    const actionSetting = targetActions[actionType] || 'default';
+    const rawActionConfig = targetActions[actionType];
 
-    let finalAction = actionSetting;
-    if (actionSetting === 'default') {
-      finalAction = (targetName === 'icon') ? 'more-info' : 'none';
+    let action = 'default';
+    let path = '';
+    let url = '';
+
+    if (typeof rawActionConfig === 'object' && rawActionConfig !== null) {
+      action = rawActionConfig.action || 'default';
+      path = rawActionConfig.navigation_path || rawActionConfig.path || '';
+      url = rawActionConfig.url_path || rawActionConfig.url || '';
+    } else if (typeof rawActionConfig === 'string') {
+      action = rawActionConfig;
+      path = targetActions[`${actionType}_path`] || '';
+      url = targetActions[`${actionType}_url`] || '';
     }
 
-    if (finalAction === 'more-info') {
+    if (action === 'default') {
+      action = (targetName === 'icon') ? 'more-info' : 'none';
+    }
+
+    if (action === 'more-info') {
       const event = new CustomEvent("hass-more-info", {
         detail: { entityId: this.config.entity },
         bubbles: true,
         composed: true,
       });
       this.dispatchEvent(event);
-    } else if (finalAction === 'navigate' && targetActions[`${actionType}_path`]) {
-      history.pushState(null, '', targetActions[`${actionType}_path`]);
+    } else if (action === 'navigate' && path) {
+      history.pushState(null, '', path);
       window.dispatchEvent(new Event('location-change'));
-    } else if (finalAction === 'url' && targetActions[`${actionType}_url`]) {
-      window.open(targetActions[`${actionType}_url`], '_blank');
+    } else if (action === 'url' && url) {
+      window.open(url, '_blank');
     }
   }
 }
@@ -319,10 +332,9 @@ class PersonDetailsCardEditor extends HTMLElement {
     super();
     this.attachShadow({ mode: 'open' });
     this._initialized = false;
-    this._locationsExpanded = false;
+    this._interactionsExpanded = false;
     this._sensorsExpanded = false;
-    this._actionsIconExpanded = false;
-    this._actionsCardExpanded = false;
+    this._locationsExpanded = false;
     this._selectedDevice = null;
   }
 
@@ -346,17 +358,14 @@ class PersonDetailsCardEditor extends HTMLElement {
   _render() {
     if (!this._config) return;
 
+    const interPanel = this.shadowRoot.querySelector('#interactions-panel');
+    if (interPanel) this._interactionsExpanded = interPanel.expanded;
+
     const locPanel = this.shadowRoot.querySelector('#locations-panel');
     if (locPanel) this._locationsExpanded = locPanel.expanded;
 
     const sensorPanel = this.shadowRoot.querySelector('#sensors-panel');
     if (sensorPanel) this._sensorsExpanded = sensorPanel.expanded;
-
-    const actIconPanel = this.shadowRoot.querySelector('#actions-icon-panel');
-    if (actIconPanel) this._actionsIconExpanded = actIconPanel.expanded;
-
-    const actCardPanel = this.shadowRoot.querySelector('#actions-card-panel');
-    if (actCardPanel) this._actionsCardExpanded = actCardPanel.expanded;
 
     let allZones = ['home', 'not_home'];
     if (this._hass && this._hass.states) {
@@ -375,6 +384,50 @@ class PersonDetailsCardEditor extends HTMLElement {
     const iconActions = actions.icon || {};
     const cardActions = actions.card || {};
 
+    const getActionData = (targetObj, actionKey) => {
+      const val = targetObj[actionKey];
+      if (typeof val === 'object' && val !== null) {
+        return {
+          action: val.action || 'default',
+          path: val.navigation_path || val.path || '',
+          url: val.url_path || val.url || ''
+        };
+      }
+      return {
+        action: val || 'default',
+        path: targetObj[`${actionKey}_path`] || '',
+        url: targetObj[`${actionKey}_url`] || ''
+      };
+    };
+
+    const renderActionRow = (prefix, labelText, actionData, isIcon) => {
+      const actVal = actionData.action || 'default';
+      const pathVal = actionData.path || '';
+      const urlVal = actionData.url || '';
+      const defText = isIcon ? "Standard (Detailansicht)" : "Standard (Nichts)";
+
+      return `
+        <div class="action-block">
+          <div class="action-label">${labelText}</div>
+          <select id="${prefix}_action" class="action-select">
+            <option value="default" ${actVal === 'default' ? 'selected' : ''}>${defText}</option>
+            <option value="more-info" ${actVal === 'more-info' ? 'selected' : ''}>Detailansicht</option>
+            <option value="navigate" ${actVal === 'navigate' ? 'selected' : ''}>Navigieren</option>
+            <option value="url" ${actVal === 'url' ? 'selected' : ''}>URL</option>
+            <option value="none" ${actVal === 'none' ? 'selected' : ''}>nichts</option>
+          </select>
+          <div id="${prefix}_path_container" class="conditional-field" style="display: ${actVal === 'navigate' ? 'block' : 'none'};">
+            <div class="sub-label">Navigationspfad</div>
+            <input type="text" id="${prefix}_path" class="action-input" value="${pathVal}" placeholder="/lovelace/dashboard">
+          </div>
+          <div id="${prefix}_url_container" class="conditional-field" style="display: ${actVal === 'url' ? 'block' : 'none'};">
+            <div class="sub-label">Ziel-URL</div>
+            <input type="text" id="${prefix}_url" class="action-input" value="${urlVal}" placeholder="https://example.com">
+          </div>
+        </div>
+      `;
+    };
+
     let locationRowsHtml = '';
     locationColors.forEach((item, index) => {
       locationRowsHtml += `
@@ -390,43 +443,6 @@ class PersonDetailsCardEditor extends HTMLElement {
       `;
     });
 
-    const renderActionOptions = (currentVal, isIcon) => {
-      const defText = isIcon ? "Standard (Detailansicht)" : "Standard (Nichts)";
-      return `
-        <option value="default" ${!currentVal || currentVal === 'default' ? 'selected' : ''}>${defText}</option>
-        <option value="more-info" ${currentVal === 'more-info' ? 'selected' : ''}>Detailansicht</option>
-        <option value="navigate" ${currentVal === 'navigate' ? 'selected' : ''}>Navigieren</option>
-        <option value="url" ${currentVal === 'url' ? 'selected' : ''}>URL</option>
-        <option value="none" ${currentVal === 'none' ? 'selected' : ''}>nichts</option>
-      `;
-    };
-
-    const renderActionSection = (prefix, labelText, currentActionData, isIcon) => {
-      const actVal = currentActionData.action || 'default';
-      const pathVal = currentActionData.path || '';
-      const urlVal = currentActionData.url || '';
-
-      return `
-        <ha-expansion-panel header="${labelText}">
-          <div class="panel-content">
-            <div class="action-row">
-              <select id="${prefix}_action" class="action-select action-dropdown" data-target="${prefix}">
-                ${renderActionOptions(actVal, isIcon)}
-              </select>
-            </div>
-            <div id="${prefix}_path_container" class="conditional-field" style="display: ${actVal === 'navigate' ? 'block' : 'none'};">
-              <div class="action-label" style="margin-bottom: 4px;">Navigationspfad / Dashboard</div>
-              <input type="text" id="${prefix}_path" class="action-input" value="${pathVal}" placeholder="/lovelace/dashboard oder /dashboard/ansicht">
-            </div>
-            <div id="${prefix}_url_container" class="conditional-field" style="display: ${actVal === 'url' ? 'block' : 'none'};">
-              <div class="action-label" style="margin-bottom: 4px;">Ziel-URL</div>
-              <input type="text" id="${prefix}_url" class="action-input" value="${urlVal}" placeholder="https://example.com">
-            </div>
-          </div>
-        </ha-expansion-panel>
-      `;
-    };
-
     this.shadowRoot.innerHTML = `
       <style>
         .card-config {
@@ -435,20 +451,42 @@ class PersonDetailsCardEditor extends HTMLElement {
           gap: 16px;
           padding: 8px 0;
           color: var(--primary-text-color);
+          font-family: inherit;
         }
         ha-entity-picker {
           width: 100%;
         }
         ha-expansion-panel {
-          background: var(--secondary-background-color);
+          background: var(--card-background-color, var(--secondary-background-color));
           border-radius: 8px;
+          border: 1px solid var(--divider-color, #e0e0e0);
           overflow: hidden;
         }
         .panel-content {
           display: flex;
           flex-direction: column;
-          gap: 16px;
-          padding: 12px 8px;
+          gap: 14px;
+          padding: 12px 14px;
+        }
+        .action-block {
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
+          background: var(--secondary-background-color, rgba(0,0,0,0.03));
+          padding: 10px;
+          border-radius: 6px;
+          border: 1px solid var(--divider-color, rgba(0,0,0,0.08));
+        }
+        .action-label {
+          font-size: 13px;
+          font-weight: 500;
+          color: var(--primary-text-color);
+        }
+        .sub-label {
+          font-size: 12px;
+          color: var(--secondary-text-color, #666);
+          margin-top: 4px;
+          margin-bottom: 2px;
         }
         .device-info-box {
           background: var(--card-background-color, var(--secondary-background-color));
@@ -464,28 +502,23 @@ class PersonDetailsCardEditor extends HTMLElement {
           color: var(--error-color, #db4437);
           font-weight: 500;
         }
-        .device-select, .action-select, .action-input {
-          background: var(--primary-background-color);
+        .device-select, .action-select, .action-input, .zone-select {
+          background: var(--card-background-color, var(--primary-background-color));
           color: var(--primary-text-color);
-          border: 1px solid var(--divider-color);
+          border: 1px solid var(--divider-color, #ccc);
           border-radius: 4px;
-          padding: 8px 12px;
+          padding: 8px 10px;
           font-size: 13px;
           width: 100%;
           outline: none;
           box-sizing: border-box;
+          font-family: inherit;
         }
-        .action-row {
-          display: flex;
-          flex-direction: column;
-          gap: 6px;
-        }
-        .action-label {
-          font-size: 13px;
-          font-weight: 500;
+        .action-select:focus, .action-input:focus, .zone-select:focus {
+          border-color: var(--primary-color, #03a9f4);
         }
         .conditional-field {
-          margin-top: 4px;
+          width: 100%;
         }
         .location-container {
           display: flex;
@@ -500,16 +533,6 @@ class PersonDetailsCardEditor extends HTMLElement {
           padding: 8px 12px;
           border-radius: 8px;
           border: 1px solid var(--divider-color);
-        }
-        .zone-select {
-          flex: 1;
-          background: var(--primary-background-color);
-          color: var(--primary-text-color);
-          border: 1px solid var(--divider-color);
-          border-radius: 4px;
-          padding: 8px 12px;
-          font-size: 14px;
-          outline: none;
         }
         .color-picker-wrapper {
           display: flex;
@@ -563,19 +586,23 @@ class PersonDetailsCardEditor extends HTMLElement {
 
         <div id="device-container"></div>
 
-        <ha-expansion-panel id="actions-icon-panel" header="Tap action on icon" ${this._actionsIconExpanded ? 'expanded' : ''}>
+        <ha-expansion-panel id="interactions-panel" header="Interaktionen" ${this._interactionsExpanded ? 'expanded' : ''}>
           <div class="panel-content">
-            ${renderActionSection('icon_tap', 'Tap action', { action: iconActions.tap_action, path: iconActions.tap_action_path, url: iconActions.tap_action_url }, true)}
-            ${renderActionSection('icon_double_tap', 'Double tap action', { action: iconActions.double_tap_action, path: iconActions.double_tap_action_path, url: iconActions.double_tap_action_url }, true)}
-            ${renderActionSection('icon_hold', 'Hold action', { action: iconActions.hold_action, path: iconActions.hold_action_path, url: iconActions.hold_action_url }, true)}
-          </div>
-        </ha-expansion-panel>
+            
+            <ha-expansion-panel header="Profilbild / Icon Interaktionen">
+              <div class="panel-content">
+                ${renderActionRow('icon_tap', 'Tipp-Aktion', getActionData(iconActions, 'tap_action'), true)}
+                ${renderActionRow('icon_double_tap', 'Doppeltipp-Aktion', getActionData(iconActions, 'double_tap_action'), true)}${renderActionRow('icon_hold', 'Gedrückt halten-Aktion', getActionData(iconActions, 'hold_action'), true)}
+              </div>
+            </ha-expansion-panel>
 
-        <ha-expansion-panel id="actions-card-panel" header="Tap action on card" ${this._actionsCardExpanded ? 'expanded' : ''}>
-          <div class="panel-content">
-            ${renderActionSection('card_tap', 'Tap action', { action: cardActions.tap_action, path: cardActions.tap_action_path, url: cardActions.tap_action_url }, false)}
-            ${renderActionSection('card_double_tap', 'Double tap action', { action: cardActions.double_tap_action, path: cardActions.double_tap_action_path, url: cardActions.double_tap_action_url }, false)}
-            ${renderActionSection('card_hold', 'Hold action', { action: cardActions.hold_action, path: cardActions.hold_action_path, url: cardActions.hold_action_url }, false)}
+            <ha-expansion-panel header="Karten Interaktionen">
+              <div class="panel-content">
+                ${renderActionRow('card_tap', 'Tipp-Aktion', getActionData(cardActions, 'tap_action'), false)}
+                ${renderActionRow('card_double_tap', 'Doppeltipp-Aktion', getActionData(cardActions, 'double_tap_action'), false)}${renderActionRow('card_hold', 'Gedrückt halten-Aktion', getActionData(cardActions, 'hold_action'), false)}
+              </div>
+            </ha-expansion-panel>
+
           </div>
         </ha-expansion-panel>
 
@@ -588,336 +615,4 @@ class PersonDetailsCardEditor extends HTMLElement {
           </div>
         </ha-expansion-panel>
 
-        <ha-expansion-panel id="locations-panel" header="Orte & Rahmenfarben" ${this._locationsExpanded ? 'expanded' : ''}>
-          <div class="panel-content">
-            <div class="location-container">
-              ${locationRowsHtml}
-              <button type="button" id="add-location-btn" class="add-btn">
-                <ha-icon icon="mdi:plus"></ha-icon> Ort hinzufügen
-              </button>
-            </div>
-          </div>
-        </ha-expansion-panel>
-      </div>
-    `;
-
-    this._initialized = true;
-
-    this.shadowRoot.querySelectorAll('.location-row').forEach((row, rowIndex) => {
-      const item = locationColors[rowIndex];
-      const select = row.querySelector('.zone-select');
-      
-      const defaultOpt = document.createElement('option');
-      defaultOpt.value = "";
-      defaultOpt.textContent = "-- Ort wählen --";
-      select.appendChild(defaultOpt);
-
-      allZones.forEach(z => {
-        const opt = document.createElement('option');
-        opt.value = z;
-        opt.textContent = z;
-        if (item && item.zone === z) {
-          opt.selected = true;
-        }
-        select.appendChild(opt);
-      });
-    });
-
-    this._setupAllPickers();
-    this._attachLocationListeners();
-    this._attachActionListeners();
-    this._updateDeviceContainer();
-  }
-
-  _setupAllPickers() {
-    if (!this._hass) return;
-    const config = this._config || {};
-    const variables = config.variables || {};
-
-    const setupPicker = (id, label, includeDomains, val) => {
-      const picker = this.shadowRoot.getElementById(id);
-      if (picker) {
-        picker.label = label;
-        picker.includeDomains = includeDomains;
-        picker.hass = this._hass;
-        if (picker.value !== val) {
-          picker.value = val || '';
-        }
-        if (!picker._boundHandler) {
-          picker._boundHandler = () => {
-            if (id === 'input_entity') {
-              this._updateDeviceContainer();
-            }
-            this._valueChanged();
-          };
-          picker.addEventListener('value-changed', picker._boundHandler);
-        }
-      }
-    };
-
-    setupPicker('input_entity', 'Person', ['person'], config.entity);
-    setupPicker('input_battery_level', 'Batterie Level Sensor', ['sensor'], variables.battery_level);
-    setupPicker('input_battery_state', 'Batterie State Sensor (Ladezustand)', ['sensor'], variables.battery_state);
-    setupPicker('input_wifi', 'WLAN Sensor (SSID)', ['sensor'], variables.wifi);
-    setupPicker('input_proximity', 'Proximity Sensor (Entfernung)', ['sensor'], variables.proximity);
-  }
-
-  _attachActionListeners() {
-    const prefixes = ['icon_tap', 'icon_double_tap', 'icon_hold', 'card_tap', 'card_double_tap', 'card_hold'];
-    prefixes.forEach(prefix => {
-      const selectEl = this.shadowRoot.getElementById(`${prefix}_action`);
-      const pathContainer = this.shadowRoot.getElementById(`${prefix}_path_container`);
-      const urlContainer = this.shadowRoot.getElementById(`${prefix}_url_container`);
-      const pathInput = this.shadowRoot.getElementById(`${prefix}_path`);
-      const urlInput = this.shadowRoot.getElementById(`${prefix}_url`);
-
-      if (selectEl) {
-        selectEl.addEventListener('change', (e) => {
-          const val = e.target.value;
-          if (pathContainer) pathContainer.style.display = val === 'navigate' ? 'block' : 'none';
-          if (urlContainer) urlContainer.style.display = val === 'url' ? 'block' : 'none';
-          this._valueChanged();
-        });
-      }
-
-      if (pathInput) {
-        pathInput.addEventListener('input', () => this._valueChanged());
-      }
-      if (urlInput) {
-        urlInput.addEventListener('input', () => this._valueChanged());
-      }
-    });
-  }
-
-  _updateDeviceContainer() {
-    const container = this.shadowRoot.getElementById('device-container');
-    if (!container || !this._hass) return;
-
-    container.innerHTML = '';
-
-    const personPicker = this.shadowRoot.getElementById('input_entity');
-    const personId = personPicker ? personPicker.value : this._config.entity;
-
-    if (!personId || !this._hass.states[personId]) return;
-
-    const personState = this._hass.states[personId];
-    const devices = personState.attributes.device_trackers || (personState.attributes.source ? [personState.attributes.source] : []);
-
-    const box = document.createElement('div');
-    box.className = 'device-info-box';
-
-    if (!devices || devices.length === 0) {
-      const err = document.createElement('span');
-      err.className = 'error-msg';
-      err.textContent = 'Kein Gerät vorhanden, bitte in den Einstellungen eintragen!';
-      box.appendChild(err);
-    } else if (devices.length === 1) {
-      const info = document.createElement('span');
-      info.textContent = `Verknüpftes Gerät: ${devices[0]}`;
-      box.appendChild(info);
-      this._autoFillSensors(devices[0]);
-    } else {
-      const label = document.createElement('span');
-      label.textContent = 'Mehrere Geräte vorhanden, bitte auswählen:';
-      box.appendChild(label);
-
-      const select = document.createElement('select');
-      select.className = 'device-select';
-
-      const defaultOpt = document.createElement('option');
-      defaultOpt.value = '';
-      defaultOpt.textContent = '-- Gerät wählen --';
-      select.appendChild(defaultOpt);
-
-      devices.forEach(dev => {
-        const opt = document.createElement('option');
-        opt.value = dev;
-        opt.textContent = dev;
-        if (this._selectedDevice === dev) {
-          opt.selected = true;
-        }
-        select.appendChild(opt);
-      });
-
-      select.addEventListener('change', (e) => {
-        this._selectedDevice = e.target.value;
-        if (this._selectedDevice) {
-          this._autoFillSensors(this._selectedDevice);
-        }
-      });
-
-      box.appendChild(select);
-    }
-
-    container.appendChild(box);
-  }
-
-  _autoFillSensors(deviceEntityId) {
-    if (!deviceEntityId || !this._hass || !this._hass.states) return;
-    
-    const deviceObjId = deviceEntityId.replace('device_tracker.', '');
-
-    const findMatchingSensor = (suffixes) => {
-      for (const suffix of suffixes) {
-        const candidate = `sensor.${deviceObjId}_${suffix}`;
-        if (this._hass.states[candidate]) {
-          return candidate;
-        }
-      }
-      return '';
-    };
-
-    const batteryLevel = findMatchingSensor(['battery_level', 'battery']);
-    const batteryState = findMatchingSensor(['battery_state', 'charger_type', 'is_charging']);
-    const wifi = findMatchingSensor(['wifi_connection', 'ssid', 'connection_type']);
-
-    if (batteryLevel) {
-      const el = this.shadowRoot.getElementById('input_battery_level');
-      if (el) el.value = batteryLevel;
-    }
-    if (batteryState) {
-      const el = this.shadowRoot.getElementById('input_battery_state');
-      if (el) el.value = batteryState;
-    }
-    if (wifi) {
-      const el = this.shadowRoot.getElementById('input_wifi');
-      if (el) el.value = wifi;
-    }
-
-    this._valueChanged();
-  }
-
-  _updateValues() {
-    this._setupAllPickers();
-    this._updateDeviceContainer();
-  }
-
-  _attachLocationListeners() {
-    this.shadowRoot.querySelectorAll('.location-row').forEach(row => {
-      const index = parseInt(row.dataset.index);
-      const select = row.querySelector('.zone-select');
-      const colorInput = row.querySelector('.color-input');
-      const deleteBtn = row.querySelector('.delete-btn');
-
-      select.addEventListener('change', (e) => {
-        const val = e.target.value;
-        this._updateLocationColor(index, val, colorInput.value);
-        
-        const locationColors = this._config.location_colors || [];
-        if (val && index === locationColors.length - 1) {
-          this._addEmptyLocation();
-        }
-      });
-
-      colorInput.addEventListener('input', (e) => {
-        this._updateLocationColor(index, select.value, e.target.value);
-      });
-
-      deleteBtn.addEventListener('click', () => {
-        this._removeLocation(index);
-      });
-    });
-
-    const addBtn = this.shadowRoot.getElementById('add-location-btn');
-    if (addBtn) {
-      addBtn.addEventListener('click', () => {
-        this._addEmptyLocation();
-      });
-    }
-  }
-
-  _addEmptyLocation() {
-    const config = JSON.parse(JSON.stringify(this._config));
-    config.location_colors = config.location_colors || [];
-    config.location_colors.push({ zone: '', color: '#3498db' });
-    this._config = config;
-    this._render();
-    this._valueChanged();
-  }
-
-  _updateLocationColor(index, zone, color) {
-    const config = JSON.parse(JSON.stringify(this._config));
-    config.location_colors = config.location_colors || [];
-    if (config.location_colors[index]) {
-      config.location_colors[index] = { zone, color };
-    }
-    this._config = config;
-    this._valueChanged();
-  }
-
-  _removeLocation(index) {
-    const config = JSON.parse(JSON.stringify(this._config));
-    config.location_colors = config.location_colors || [];
-    config.location_colors.splice(index, 1);
-    this._config = config;
-    this._render();
-    this._valueChanged();
-  }
-
-  _valueChanged() {
-    if (!this._config || !this._hass) return;
-
-    const getVal = (id) => {
-      const el = this.shadowRoot.getElementById(id);
-      return el ? el.value : '';
-    };
-
-    const config = this._config;
-
-    const newConfig = {
-      type: 'custom:person-details-card-dev',
-      entity: getVal('input_entity'),
-      variables: {
-        battery_level: getVal('input_battery_level'),
-        battery_state: getVal('input_battery_state'),
-        wifi: getVal('input_wifi'),
-        proximity: getVal('input_proximity')
-      },
-      actions: {
-        icon: {
-          tap_action: getVal('icon_tap_action'),
-          tap_action_path: getVal('icon_tap_path'),
-          tap_action_url: getVal('icon_tap_url'),
-          double_tap_action: getVal('icon_double_tap_action'),
-          double_tap_action_path: getVal('icon_double_tap_path'),
-          double_tap_action_url: getVal('icon_double_tap_url'),
-          hold_action: getVal('icon_hold_action'),
-          hold_action_path: getVal('icon_hold_path'),
-          hold_action_url: getVal('icon_hold_url')
-        },
-        card: {
-          tap_action: getVal('card_tap_action'),
-          tap_action_path: getVal('card_tap_path'),
-          tap_action_url: getVal('card_tap_url'),
-          double_tap_action: getVal('card_double_tap_action'),
-          double_tap_action_path: getVal('card_double_tap_path'),
-          double_tap_action_url: getVal('card_double_tap_url'),
-          hold_action: getVal('card_hold_action'),
-          hold_action_path: getVal('card_hold_path'),
-          hold_action_url: getVal('card_hold_url')
-        }
-      },
-      location_colors: config.location_colors || []
-    };
-
-    this._config = newConfig;
-
-    const event = new CustomEvent('config-changed', {
-      detail: { config: newConfig },
-      bubbles: true,
-      composed: true,
-    });
-    this.dispatchEvent(event);
-  }
-}
-
-customElements.define('person-details-card-dev-editor', PersonDetailsCardEditor);
-
-window.customCards = window.customCards || [];
-window.customCards.push({
-  type: "person-details-card-dev",
-  name: "Person Details Karte (DEV)",
-  description: "Zeigt das Profilbild, Status, Batterie, WLAN und Entfernung einer Person an.",
-  preview: false,
-  documentationURL: "https://github.com"
-});
+        <ha-expansion-panel id="locations-panel" header="Orte & Rahmenfarben" ${this._locationsExpanded ? 'expanded' : ''
