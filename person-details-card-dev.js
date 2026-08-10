@@ -592,14 +592,16 @@ class PersonDetailsCardEditor extends HTMLElement {
             <ha-expansion-panel header="Profilbild / Icon Interaktionen">
               <div class="panel-content">
                 ${renderActionRow('icon_tap', 'Tipp-Aktion', getActionData(iconActions, 'tap_action'), true)}
-                ${renderActionRow('icon_double_tap', 'Doppeltipp-Aktion', getActionData(iconActions, 'double_tap_action'), true)}${renderActionRow('icon_hold', 'Gedrückt halten-Aktion', getActionData(iconActions, 'hold_action'), true)}
+                ${renderActionRow('icon_double_tap', 'Doppeltipp-Aktion', getActionData(iconActions, 'double_tap_action'), true)}
+                ${renderActionRow('icon_hold', 'Gedrückt halten-Aktion', getActionData(iconActions, 'hold_action'), true)}
               </div>
             </ha-expansion-panel>
 
             <ha-expansion-panel header="Karten Interaktionen">
               <div class="panel-content">
                 ${renderActionRow('card_tap', 'Tipp-Aktion', getActionData(cardActions, 'tap_action'), false)}
-                ${renderActionRow('card_double_tap', 'Doppeltipp-Aktion', getActionData(cardActions, 'double_tap_action'), false)}${renderActionRow('card_hold', 'Gedrückt halten-Aktion', getActionData(cardActions, 'hold_action'), false)}
+                ${renderActionRow('card_double_tap', 'Doppeltipp-Aktion', getActionData(cardActions, 'double_tap_action'), false)}
+                ${renderActionRow('card_hold', 'Gedrückt halten-Aktion', getActionData(cardActions, 'hold_action'), false)}
               </div>
             </ha-expansion-panel>
 
@@ -615,4 +617,344 @@ class PersonDetailsCardEditor extends HTMLElement {
           </div>
         </ha-expansion-panel>
 
-        <ha-expansion-panel id="locations-panel" header="Orte & Rahmenfarben" ${this._locationsExpanded ? 'expanded' : ''
+        <ha-expansion-panel id="locations-panel" header="Orte & Rahmenfarben" ${this._locationsExpanded ? 'expanded' : ''}>
+          <div class="panel-content">
+            <div class="location-container">
+              ${locationRowsHtml}
+              <button type="button" id="add-location-btn" class="add-btn">
+                <ha-icon icon="mdi:plus"></ha-icon> Ort hinzufügen
+              </button>
+            </div>
+          </div>
+        </ha-expansion-panel>
+      </div>
+    `;
+
+    this._initialized = true;
+
+    this.shadowRoot.querySelectorAll('.location-row').forEach((row, rowIndex) => {
+      const item = locationColors[rowIndex];
+      const select = row.querySelector('.zone-select');
+      
+      const defaultOpt = document.createElement('option');
+      defaultOpt.value = "";
+      defaultOpt.textContent = "-- Ort wählen --";
+      select.appendChild(defaultOpt);
+
+      allZones.forEach(z => {
+        const opt = document.createElement('option');
+        opt.value = z;
+        opt.textContent = z;
+        if (item && item.zone === z) {
+          opt.selected = true;
+        }
+        select.appendChild(opt);
+      });
+    });
+
+    this._setupAllPickers();
+    this._attachLocationListeners();
+    this._attachActionListeners();
+    this._updateDeviceContainer();
+  }
+
+  _setupAllPickers() {
+    if (!this._hass) return;
+    const config = this._config || {};
+    const variables = config.variables || {};
+
+    const setupPicker = (id, label, includeDomains, val) => {
+      const picker = this.shadowRoot.getElementById(id);
+      if (picker) {
+        picker.label = label;
+        picker.includeDomains = includeDomains;
+        picker.hass = this._hass;
+        if (picker.value !== val) {
+          picker.value = val || '';
+        }
+        if (!picker._boundHandler) {
+          picker._boundHandler = () => {
+            if (id === 'input_entity') {
+              this._updateDeviceContainer();
+            }
+            this._valueChanged();
+          };
+          picker.addEventListener('value-changed', picker._boundHandler);
+        }
+      }
+    };
+
+    setupPicker('input_entity', 'Person', ['person'], config.entity);
+    setupPicker('input_battery_level', 'Batterie Level Sensor', ['sensor'], variables.battery_level);
+    setupPicker('input_battery_state', 'Batterie State Sensor (Ladezustand)', ['sensor'], variables.battery_state);
+    setupPicker('input_wifi', 'WLAN Sensor (SSID)', ['sensor'], variables.wifi);
+    setupPicker('input_proximity', 'Proximity Sensor (Entfernung)', ['sensor'], variables.proximity);
+  }
+
+  _attachActionListeners() {
+    const prefixes = ['icon_tap', 'icon_double_tap', 'icon_hold', 'card_tap', 'card_double_tap', 'card_hold'];
+    prefixes.forEach(prefix => {
+      const selectEl = this.shadowRoot.getElementById(`${prefix}_action`);
+      const pathContainer = this.shadowRoot.getElementById(`${prefix}_path_container`);
+      const urlContainer = this.shadowRoot.getElementById(`${prefix}_url_container`);
+      const pathInput = this.shadowRoot.getElementById(`${prefix}_path`);
+      const urlInput = this.shadowRoot.getElementById(`${prefix}_url`);
+
+      if (selectEl) {
+        selectEl.addEventListener('change', (e) => {
+          const val = e.target.value;
+          if (pathContainer) pathContainer.style.display = val === 'navigate' ? 'block' : 'none';
+          if (urlContainer) urlContainer.style.display = val === 'url' ? 'block' : 'none';
+          this._valueChanged();
+        });
+      }
+
+      if (pathInput) pathInput.addEventListener('input', () => this._valueChanged());
+      if (urlInput) urlInput.addEventListener('input', () => this._valueChanged());
+    });
+  }
+
+  _updateDeviceContainer() {
+    const container = this.shadowRoot.getElementById('device-container');
+    if (!container || !this._hass) return;
+
+    container.innerHTML = '';
+
+    const personPicker = this.shadowRoot.getElementById('input_entity');
+    const personId = personPicker ? personPicker.value : this._config.entity;
+
+    if (!personId || !this._hass.states[personId]) return;
+
+    const personState = this._hass.states[personId];
+    const devices = personState.attributes.device_trackers || (personState.attributes.source ? [personState.attributes.source] : []);
+
+    const box = document.createElement('div');
+    box.className = 'device-info-box';
+
+    if (!devices || devices.length === 0) {
+      const err = document.createElement('span');
+      err.className = 'error-msg';
+      err.textContent = 'Kein Gerät vorhanden, bitte in den Einstellungen eintragen!';
+      box.appendChild(err);
+    } else if (devices.length === 1) {
+      const info = document.createElement('span');
+      info.textContent = `Verknüpftes Gerät: ${devices[0]}`;
+      box.appendChild(info);
+      this._autoFillSensors(devices[0]);
+    } else {
+      const label = document.createElement('span');
+      label.textContent = 'Mehrere Geräte vorhanden, bitte auswählen:';
+      box.appendChild(label);
+
+      const select = document.createElement('select');
+      select.className = 'device-select';
+
+      const defaultOpt = document.createElement('option');
+      defaultOpt.value = '';
+      defaultOpt.textContent = '-- Gerät wählen --';
+      select.appendChild(defaultOpt);
+
+      devices.forEach(dev => {
+        const opt = document.createElement('option');
+        opt.value = dev;
+        opt.textContent = dev;
+        if (this._selectedDevice === dev) {
+          opt.selected = true;
+        }
+        select.appendChild(opt);
+      });
+
+      select.addEventListener('change', (e) => {
+        this._selectedDevice = e.target.value;
+        if (this._selectedDevice) {
+          this._autoFillSensors(this._selectedDevice);
+        }
+      });
+
+      box.appendChild(select);
+    }
+
+    container.appendChild(box);
+  }
+
+  _autoFillSensors(deviceEntityId) {
+    if (!deviceEntityId || !this._hass || !this._hass.states) return;
+    
+    const deviceObjId = deviceEntityId.replace('device_tracker.', '');
+
+    const findMatchingSensor = (suffixes) => {
+      for (const suffix of suffixes) {
+        const candidate = `sensor.${deviceObjId}_${suffix}`;
+        if (this._hass.states[candidate]) {
+          return candidate;
+        }
+      }
+      return '';
+    };
+
+    const batteryLevel = findMatchingSensor(['battery_level', 'battery']);
+    const batteryState = findMatchingSensor(['battery_state', 'charger_type', 'is_charging']);
+    const wifi = findMatchingSensor(['wifi_connection', 'ssid', 'connection_type']);
+
+    if (batteryLevel) {
+      const el = this.shadowRoot.getElementById('input_battery_level');
+      if (el) el.value = batteryLevel;
+    }
+    if (batteryState) {
+      const el = this.shadowRoot.getElementById('input_battery_state');
+      if (el) el.value = batteryState;
+    }
+    if (wifi) {
+      const el = this.shadowRoot.getElementById('input_wifi');
+      if (el) el.value = wifi;
+    }
+
+    this._valueChanged();
+  }
+
+  _updateValues() {
+    this._setupAllPickers();
+    this._updateDeviceContainer();
+  }
+
+  _attachLocationListeners() {
+    this.shadowRoot.querySelectorAll('.location-row').forEach(row => {
+      const index = parseInt(row.dataset.index);
+      const select = row.querySelector('.zone-select');
+      const colorInput = row.querySelector('.color-input');
+      const deleteBtn = row.querySelector('.delete-btn');
+
+      select.addEventListener('change', (e) => {
+        const val = e.target.value;
+        this._updateLocationColor(index, val, colorInput.value);
+        
+        const locationColors = this._config.location_colors || [];
+        if (val && index === locationColors.length - 1) {
+          this._addEmptyLocation();
+        }
+      });
+
+      colorInput.addEventListener('input', (e) => {
+        this._updateLocationColor(index, select.value, e.target.value);
+      });
+
+      deleteBtn.addEventListener('click', () => {
+        this._removeLocation(index);
+      });
+    });
+
+    const addBtn = this.shadowRoot.getElementById('add-location-btn');
+    if (addBtn) {
+      addBtn.addEventListener('click', () => {
+        this._addEmptyLocation();
+      });
+    }
+  }
+
+  _addEmptyLocation() {
+    const config = JSON.parse(JSON.stringify(this._config));
+    config.location_colors = config.location_colors || [];
+    config.location_colors.push({ zone: '', color: '#3498db' });
+    this._config = config;
+    this._render();
+    this._valueChanged();
+  }
+
+  _updateLocationColor(index, zone, color) {
+    const config = JSON.parse(JSON.stringify(this._config));
+    config.location_colors = config.location_colors || [];
+    if (config.location_colors[index]) {
+      config.location_colors[index] = { zone, color };
+    }
+    this._config = config;
+    this._valueChanged();
+  }
+
+  _removeLocation(index) {
+    const config = JSON.parse(JSON.stringify(this._config));
+    config.location_colors = config.location_colors || [];
+    config.location_colors.splice(index, 1);
+    this._config = config;
+    this._render();
+    this._valueChanged();
+  }
+
+  _valueChanged() {
+    if (!this._config || !this._hass) return;
+
+    const getVal = (id) => {
+      const el = this.shadowRoot.getElementById(id);
+      return el ? el.value : '';
+    };
+
+    const config = this._config;
+
+    const newConfig = {
+      type: 'custom:person-details-card-dev',
+      entity: getVal('input_entity'),
+      variables: {
+        battery_level: getVal('input_battery_level'),
+        battery_state: getVal('input_battery_state'),
+        wifi: getVal('input_wifi'),
+        proximity: getVal('input_proximity')
+      },
+      actions: {
+        icon: {
+          tap_action: {
+            action: getVal('icon_tap_action'),
+            navigation_path: getVal('icon_tap_path'),
+            url_path: getVal('icon_tap_url')
+          },
+          double_tap_action: {
+            action: getVal('icon_double_tap_action'),
+            navigation_path: getVal('icon_double_tap_path'),
+            url_path: getVal('icon_double_tap_url')
+          },
+          hold_action: {
+            action: getVal('icon_hold_action'),
+            navigation_path: getVal('icon_hold_path'),
+            url_path: getVal('icon_hold_url')
+          }
+        },
+        card: {
+          tap_action: {
+            action: getVal('card_tap_action'),
+            navigation_path: getVal('card_tap_path'),
+            url_path: getVal('card_tap_url')
+          },
+          double_tap_action: {
+            action: getVal('card_double_tap_action'),
+            navigation_path: getVal('card_double_tap_path'),
+            url_path: getVal('card_double_tap_url')
+          },
+          hold_action: {
+            action: getVal('card_hold_action'),
+            navigation_path: getVal('card_hold_path'),
+            url_path: getVal('card_hold_url')
+          }
+        }
+      },
+      location_colors: config.location_colors || []
+    };
+
+    this._config = newConfig;
+
+    const event = new CustomEvent('config-changed', {
+      detail: { config: newConfig },
+      bubbles: true,
+      composed: true,
+    });
+    this.dispatchEvent(event);
+  }
+}
+
+customElements.define('person-details-card-dev-editor', PersonDetailsCardEditor);
+
+window.customCards = window.customCards || [];
+window.customCards.push({
+  type: "person-details-card-dev",
+  name: "Person Details Karte (DEV)",
+  description: "Zeigt das Profilbild, Status, Batterie, WLAN und Entfernung einer Person an.",
+  preview: false,
+  documentationURL: "https://github.com"
+});
