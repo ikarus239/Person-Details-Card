@@ -28,19 +28,42 @@ class PersonDetailsCard extends HTMLElement {
     return document.createElement('person-details-card-editor');
   }
 
-  static getStubConfig() {
-    return { entity: "person.rudolf" };
+  static getStubConfig(hass, entities) {
+    // 1. Suche in der von HA übergebenen Entitäten-Liste nach der ersten "person.*"
+    let foundPerson = entities ? entities.find(e => e.startsWith("person.")) : null;
+  
+    // 2. Falls keine Liste übergeben wurde, suche direkt in hass.states
+    if (!foundPerson && hass && hass.states) {
+      foundPerson = Object.keys(hass.states).find(e => e.startsWith("person."));
+    }
+  
+    // 3. Nimm die gefundene Person oder einen leeren String, falls keine Person existiert
+    return {
+      entity: foundPerson || "",
+      variables: {
+        battery_level: "",
+        battery_state: "",
+        wifi: "",
+        proximity: ""
+      }
+    };
   }
 
   set hass(hass) {
     const personId = this.config.entity;
     const personDaten = hass.states[personId];
 
+    // FALLBACK FÜR DIE VORSCHAU (falls Person nicht geladen/gefunden werden kann)
     if (!personDaten) {
-      this.shadowRoot.innerHTML = `<ha-card><div style="padding: 20px; color: white;">Person nicht gefunden!</div></ha-card>`;
-      return;
+      personDaten = {
+        state: "home",
+        attributes: {
+          friendly_name: "Demo Person",
+          entity_picture: "https://brands.home-assistant.io/person/icon.png"
+        }
+      };
     }
-
+   
     const status = personDaten.state;
     const bildUrl = personDaten.attributes.entity_picture;
 
@@ -731,6 +754,6 @@ window.customCards.push({
   type: "person-details-card",
   name: "Person Details",
   description: "Zeigt das Profilbild, Status, Batterie, WiFi und Entfernung einer Person an.",
-  preview: false,
+  preview: true,
   documentationURL: "https://github.com"
 });
