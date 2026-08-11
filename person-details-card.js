@@ -729,8 +729,8 @@ customElements.define('person-details-card-editor', PersonDetailsCardEditor);
 window.customCards = window.customCards || [];
 window.customCards.push({
   type: "person-details-card",
-  name: "Person Details Karte",
-  description: "Zeigt das Profilbild, Status, Batterie, WLAN und Entfernung einer Person an.",
+  name: "Person Details",
+  description: "Zeigt das Profilbild, Status, Batterie, WiFi und Entfernung einer Person an.",
   preview: false,
   documentationURL: "https://github.com"
 });
