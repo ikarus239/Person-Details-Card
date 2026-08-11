@@ -112,11 +112,32 @@ class PersonDetailsCard extends HTMLElement {
       rahmenFarbe = "#77c66e";
     }
 
-    const icons = {
-      home: "mdi:home",
-      not_home: "mdi:home-export-outline"
-    };
-    const statusIcon = icons[status] || "mdi:map-marker-radius";
+    let statusIcon = "mdi:map-marker-radius";
+
+    if (status === "home") {
+      statusIcon = "mdi:home";
+    } else if (status === "not_home") {
+      statusIcon = "mdi:home-export-outline";
+    } else {
+      // Durchsuche alle Zonen nach einer Übereinstimmung mit dem Anzeigenamen
+      const zoneEntity = Object.values(hass.states).find(entity => {
+        if (!entity.entity_id.startsWith("zone.")) return false;
+        
+        const friendlyName = entity.attributes?.friendly_name?.toLowerCase();
+        const entityName = entity.entity_id.replace("zone.", "").toLowerCase();
+        const searchStatus = status.toLowerCase();
+
+        return friendlyName === searchStatus || entityName === searchStatus;
+      });
+
+      // Wenn die Zone gefunden wurde und ein Icon hat
+      if (zoneEntity && zoneEntity.attributes && zoneEntity.attributes.icon) {
+        statusIcon = zoneEntity.attributes.icon;
+      } else if (zoneEntity) {
+        // Falls die Zone existiert, aber kein eigenes Icon eingestellt ist
+        statusIcon = "mdi:map-marker";
+      }
+    }
 
     if (!this._renderedCard) {
       this.shadowRoot.innerHTML = `
