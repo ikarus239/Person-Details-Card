@@ -730,8 +730,8 @@ class PersonDetailsCardEditor extends HTMLElement {
       variables: {
         battery_level: getVal('input_battery_level'),
         battery_state: getVal('input_battery_state'),
-        wifi: getVal('input_wifi'),
-        proximity: getVal('input_proximity')
+        wifi: getVal('input_wi_fi'),
+        proximity: getVal('input_entfernung')
       },
       location_colors: config.location_colors || []
     };
