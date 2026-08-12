@@ -470,7 +470,7 @@ class PersonDetailsCardEditor extends HTMLElement {
           <div class="panel-content">
             <ha-entity-picker id="input_battery_level"></ha-entity-picker>
             <ha-entity-picker id="input_battery_state"></ha-entity-picker>
-            <ha-entity-picker id="input_wifi"></ha-entity-picker>
+            <ha-entity-picker id="input_wi_fi"></ha-entity-picker>
             <ha-entity-picker id="input_proximity"></ha-entity-picker>
           </div>
         </ha-expansion-panel>
@@ -545,7 +545,7 @@ class PersonDetailsCardEditor extends HTMLElement {
     setupPicker('input_entity', 'Person', ['person'], config.entity);
     setupPicker('input_battery_level', 'Batterie Level Sensor', ['sensor'], variables.battery_level);
     setupPicker('input_battery_state', 'Batterie State Sensor (Ladezustand)', ['sensor'], variables.battery_state);
-    setupPicker('input_wifi', 'WLAN Sensor (SSID)', ['sensor'], variables.wifi);
+    setupPicker('input_wi_fi', 'WiFi Sensor (SSID)', ['sensor'], variables.wifi);
     setupPicker('input_proximity', 'Proximity Sensor (Entfernung)', ['sensor'], variables.proximity);
   }
 
@@ -629,7 +629,8 @@ class PersonDetailsCardEditor extends HTMLElement {
 
     const batteryLevel = findMatchingSensor(['battery_level', 'battery']);
     const batteryState = findMatchingSensor(['battery_state', 'charger_type', 'is_charging']);
-    const wifi = findMatchingSensor(['wifi_connection', 'ssid', 'connection_type']);
+    const wifi = findMatchingSensor(['wi_fi_connection', 'ssid', 'connection_type']);
+    const proximity = findMatchingSensor(['proximity', 'entfernung', 'distance']);
 
     if (batteryLevel) {
       const el = this.shadowRoot.getElementById('input_battery_level');
@@ -640,8 +641,12 @@ class PersonDetailsCardEditor extends HTMLElement {
       if (el) el.value = batteryState;
     }
     if (wifi) {
-      const el = this.shadowRoot.getElementById('input_wifi');
+      const el = this.shadowRoot.getElementById('input_wi_fi');
       if (el) el.value = wifi;
+    }
+    if (proximity) {
+      const el = this.shadowRoot.getElementById('input_proximity');
+      if (el) el.value = proximity;
     }
 
     this._valueChanged();
@@ -731,7 +736,7 @@ class PersonDetailsCardEditor extends HTMLElement {
         battery_level: getVal('input_battery_level'),
         battery_state: getVal('input_battery_state'),
         wifi: getVal('input_wi_fi'),
-        proximity: getVal('input_entfernung')
+        proximity: getVal('input_proximity')
       },
       location_colors: config.location_colors || []
     };
