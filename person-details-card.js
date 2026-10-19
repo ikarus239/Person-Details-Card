@@ -631,7 +631,70 @@ class PersonDetailsCardEditor extends HTMLElement {
     const batteryLevel = findMatchingSensor(['battery_level', 'battery']);
     const batteryState = findMatchingSensor(['battery_state', 'charger_type', 'is_charging']);
     const wifi = findMatchingSensor(['wi_fi_connection', 'ssid', 'connection_type']);
-    const proximity = findMatchingSensor(['proximity', 'entfernung', 'distance']);
+    
+    // Entfernungssensor möglichst anhand der Person bzw. des
+    // verknüpften Geräts erkennen, nicht nur anhand des Namens.
+
+    const personPicker = this.shadowRoot.getElementById('input_entity');
+    const personId = personPicker?.value || this._config?.entity;
+    const personState = personId
+      ? this._hass.states[personId]
+      : null;
+    const trackerState = this._hass.states[deviceEntityId];
+
+    const normalize = (value) =>
+      String(value || '')
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '_')
+        .replace(/^_+|_+$/g, '');
+
+    const identityNames = [
+      personId?.replace(/^person\./, ''),
+      personState?.attributes?.friendly_name,
+      deviceObjId,
+      trackerState?.attributes?.friendly_name
+    ]
+      .map(normalize)
+      .filter(name => name.length >= 3);
+
+    // Sensoren mit Distanz-Metadaten oder Distance im Entity-Namen
+    // berücksichtigen.
+    const distanceSensors = Object.entries(this._hass.states)
+      .filter(([entityId, state]) =>
+        entityId.startsWith('sensor.') &&
+        (
+          state.attributes?.device_class === 'distance' ||
+          /(?:^|_)distance(?:_|$)/i.test(entityId)
+        )
+      )
+      .map(([entityId, state]) => ({
+        entityId,
+        searchText: normalize(
+          `${entityId} ${state.attributes?.friendly_name || ''}`
+        )
+      }));
+
+    // Nur Sensoren berücksichtigen, deren Name zur Person
+    // oder zum verknüpften Gerät passt.
+    const matchingDistanceSensors = distanceSensors.filter(sensor =>
+      identityNames.some(name => sensor.searchText.includes(name))
+    );
+
+    // Bei mehreren Treffern bevorzugt den Sensor für Home.
+    const homeDistanceSensor = matchingDistanceSensors.find(sensor =>
+      /(^|_)home(_|$)/.test(sensor.searchText)
+    );
+
+    // Bei mehreren unklaren Treffern keinen beliebigen Sensor wählen.
+    const proximity =
+      findMatchingSensor(['distance', 'entfernung']) ||
+      homeDistanceSensor?.entityId ||
+      (
+        matchingDistanceSensors.length === 1
+          ? matchingDistanceSensors[0].entityId
+          : ''
+      );
+
 
     // Nur leere Felder automatisch ausfüllen.
     // Bereits ausgewählte Sensoren bleiben erhalten.
