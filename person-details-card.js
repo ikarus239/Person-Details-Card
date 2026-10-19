@@ -51,7 +51,7 @@ class PersonDetailsCard extends HTMLElement {
 
   set hass(hass) {
     const personId = this.config.entity;
-    const personDaten = hass.states[personId];
+    let personDaten = hass.states[personId];
 
     // FALLBACK FÜR DIE VORSCHAU (falls Person nicht geladen/gefunden werden kann)
     if (!personDaten) {
@@ -612,9 +612,10 @@ class PersonDetailsCardEditor extends HTMLElement {
     container.appendChild(box);
   }
 
+  
   _autoFillSensors(deviceEntityId) {
     if (!deviceEntityId || !this._hass || !this._hass.states) return;
-    
+
     const deviceObjId = deviceEntityId.replace('device_tracker.', '');
 
     const findMatchingSensor = (suffixes) => {
@@ -632,25 +633,32 @@ class PersonDetailsCardEditor extends HTMLElement {
     const wifi = findMatchingSensor(['wi_fi_connection', 'ssid', 'connection_type']);
     const proximity = findMatchingSensor(['proximity', 'entfernung', 'distance']);
 
-    if (batteryLevel) {
-      const el = this.shadowRoot.getElementById('input_battery_level');
-      if (el) el.value = batteryLevel;
-    }
-    if (batteryState) {
-      const el = this.shadowRoot.getElementById('input_battery_state');
-      if (el) el.value = batteryState;
-    }
-    if (wifi) {
-      const el = this.shadowRoot.getElementById('input_wi_fi');
-      if (el) el.value = wifi;
-    }
-    if (proximity) {
-      const el = this.shadowRoot.getElementById('input_proximity');
-      if (el) el.value = proximity;
-    }
+    // Nur leere Felder automatisch ausfüllen.
+    // Bereits ausgewählte Sensoren bleiben erhalten.
+    let changed = false;
 
-    this._valueChanged();
+    const setIfEmpty = (pickerId, sensorId) => {
+      if (!sensorId) return;
+
+      const picker = this.shadowRoot.getElementById(pickerId);
+
+      if (picker && !picker.value) {
+        picker.value = sensorId;
+        changed = true;
+      }
+    };
+
+    setIfEmpty('input_battery_level', batteryLevel);
+    setIfEmpty('input_battery_state', batteryState);
+    setIfEmpty('input_wi_fi', wifi);
+    setIfEmpty('input_proximity', proximity);
+
+    // Nur bei tatsächlichen Änderungen die Konfiguration aktualisieren.
+    if (changed) {
+      this._valueChanged();
+    }
   }
+
 
   _updateValues() {
     this._setupAllPickers();
