@@ -1,3 +1,5 @@
+# Person Details Card for Home Assistant
+
 An elegant Lovelace card for Home Assistant that displays a person's profile picture, status, battery and Wi-Fi status, and proximity. Includes a smart editor with automatic device and sensor detection.
 
 ## Installation via HACS (Custom Repository)
