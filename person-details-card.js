@@ -553,15 +553,30 @@ class PersonDetailsCardEditor extends HTMLElement {
     const container = this.shadowRoot.getElementById('device-container');
     if (!container || !this._hass) return;
 
-    container.innerHTML = '';
-
+    
     const personPicker = this.shadowRoot.getElementById('input_entity');
     const personId = personPicker ? personPicker.value : this._config.entity;
 
     if (!personId || !this._hass.states[personId]) return;
 
     const personState = this._hass.states[personId];
-    const devices = personState.attributes.device_trackers || (personState.attributes.source ? [personState.attributes.source] : []);
+    const devices = personState.attributes.device_trackers ||
+      (personState.attributes.source ? [personState.attributes.source] : []);
+
+    // Prüfen, ob sich die Person oder die Geräteliste geändert hat.
+    const deviceSignature = JSON.stringify({
+      personId,
+      devices
+    });
+
+    // Wenn alles unverändert ist, das bestehende Dropdown behalten.
+    // So bleibt es auch während Home-Assistant-Updates geöffnet.
+    if (container.dataset.deviceSignature === deviceSignature) {
+      return;
+    }
+
+    container.dataset.deviceSignature = deviceSignature;
+    container.innerHTML = '';
 
     const box = document.createElement('div');
     box.className = 'device-info-box';
