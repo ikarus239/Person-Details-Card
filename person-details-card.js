@@ -88,7 +88,7 @@ class PersonDetailsCard extends HTMLElement {
     card.addEventListener('pointerdown', e => { const area = areaFor(e); held = false; clearTimeout(holdTimer); holdTimer = setTimeout(() => { held = true; clearTimeout(clickTimer); run(area, 'hold'); }, 550); });
     ['pointerup', 'pointercancel', 'pointerleave'].forEach(type => card.addEventListener(type, () => clearTimeout(holdTimer)));
   }
-  
+
   set hass(hass) {
     const personId = this.config.entity;
     let personDaten = hass.states[personId];
@@ -389,7 +389,7 @@ class PersonDetailsCardEditor extends HTMLElement {
         .card-config {
           display: flex;
           flex-direction: column;
-          gap: 16px;
+          gap: 10px;
           padding: 8px 0;
           color: var(--primary-text-color);
         }
@@ -397,18 +397,25 @@ class PersonDetailsCardEditor extends HTMLElement {
           width: 100%;
         }
         ha-expansion-panel {
-          background: var(--secondary-background-color);
-          border-radius: 8px;
+          --expansion-panel-summary-padding: 0 12px;
+          --expansion-panel-content-padding: 4px 12px 12px;
+          --ha-card-border-radius: 12px;
+          background: var(--card-background-color, var(--secondary-background-color));
+          border-radius: 12px;
           overflow: hidden;
         }
+        ha-expansion-panel[outlined] { border-color: var(--divider-color); }
+        ha-expansion-panel ha-expansion-panel { margin-top: 8px; }
+        ha-expansion-panel ha-expansion-panel ha-expansion-panel { background: var(--secondary-background-color); }
+        ha-expansion-panel[outlined] > ha-icon[slot="leading-icon"] { --mdc-icon-size: 20px; color: var(--primary-text-color); }
         .panel-content {
           display: flex;
           flex-direction: column;
-          gap: 16px;
-          padding: 12px 8px;
+          gap: 12px;
+          padding: 8px 0;
         }
-        .gesture-select { width: 100%; box-sizing: border-box; padding: 10px 12px; border: 1px solid var(--divider-color); border-radius: 6px; background: var(--card-background-color, var(--secondary-background-color)); color: var(--primary-text-color); font: inherit; }
-        .gesture-label { font-size: 12px; color: var(--secondary-text-color); margin-bottom: -10px; }
+        .gesture-select { width: 100%; box-sizing: border-box; min-height: 48px; padding: 10px 12px; border: 0; border-bottom: 1px solid var(--divider-color); border-radius: 4px 4px 0 0; background: var(--secondary-background-color); color: var(--primary-text-color); font: inherit; }
+        .gesture-label { font-size: 12px; color: var(--secondary-text-color); margin-bottom: -6px; }
         .device-info-box {
           background: var(--card-background-color, var(--secondary-background-color));
           padding: 10px 14px;
@@ -511,23 +518,23 @@ class PersonDetailsCardEditor extends HTMLElement {
         <!-- Dynamischer Bereich für gefundene Geräte -->
         <div id="device-container"></div>
 
-        <ha-expansion-panel id="interaction-panel" header="Tippverhalten">
+        <ha-expansion-panel id="interaction-panel" header="Tippverhalten" outlined><ha-icon slot="leading-icon" icon="mdi:gesture-tap"></ha-icon>
           <div class="panel-content">
-            <ha-expansion-panel header="Tippverhalten auf dem Icon" expanded><div class="panel-content">
-              <ha-expansion-panel header="Verhalten bei Antippen" expanded><div class="panel-content"><label class="gesture-label">Verhalten bei Antippen</label><select class="gesture-select" id="interaction-icon_tap"><option value="more-info">Standard (Detailansicht)</option><option value="navigate">Navigieren</option><option value="url">URL</option><option value="none">Nichts</option></select><ha-selector class="gesture-navigation" id="navigation-icon_tap"></ha-selector><ha-textfield class="gesture-url" id="url-icon_tap" label="URL" placeholder="https://example.com"></ha-textfield></div></ha-expansion-panel>
-              <ha-expansion-panel header="Verhalten bei Doppeltippen" expanded><div class="panel-content"><label class="gesture-label">Verhalten bei Doppeltippen</label><select class="gesture-select" id="interaction-icon_double_tap"><option value="more-info">Standard (Detailansicht)</option><option value="navigate">Navigieren</option><option value="url">URL</option><option value="none">Nichts</option></select><ha-selector class="gesture-navigation" id="navigation-icon_double_tap"></ha-selector><ha-textfield class="gesture-url" id="url-icon_double_tap" label="URL" placeholder="https://example.com"></ha-textfield></div></ha-expansion-panel>
-              <ha-expansion-panel header="Verhalten bei Festhalten" expanded><div class="panel-content"><label class="gesture-label">Verhalten bei Festhalten</label><select class="gesture-select" id="interaction-icon_hold"><option value="more-info">Standard (Detailansicht)</option><option value="navigate">Navigieren</option><option value="url">URL</option><option value="none">Nichts</option></select><ha-selector class="gesture-navigation" id="navigation-icon_hold"></ha-selector><ha-textfield class="gesture-url" id="url-icon_hold" label="URL" placeholder="https://example.com"></ha-textfield></div></ha-expansion-panel>
+            <ha-expansion-panel header="Tippverhalten auf dem Icon" outlined><ha-icon slot="leading-icon" icon="mdi:gesture-tap-button"></ha-icon><div class="panel-content">
+              <ha-expansion-panel header="Verhalten bei Antippen" outlined><ha-icon slot="leading-icon" icon="mdi:gesture-tap"></ha-icon><div class="panel-content"><label class="gesture-label">Verhalten bei Antippen</label><select class="gesture-select" id="interaction-icon_tap"><option value="more-info">Standard (Detailansicht)</option><option value="navigate">Navigieren</option><option value="url">URL</option><option value="none">Nichts</option></select><ha-selector class="gesture-navigation" id="navigation-icon_tap"></ha-selector><ha-textfield class="gesture-url" id="url-icon_tap" label="URL" placeholder="https://example.com"></ha-textfield></div></ha-expansion-panel>
+              <ha-expansion-panel header="Verhalten bei Doppeltippen" outlined><ha-icon slot="leading-icon" icon="mdi:gesture-double-tap"></ha-icon><div class="panel-content"><label class="gesture-label">Verhalten bei Doppeltippen</label><select class="gesture-select" id="interaction-icon_double_tap"><option value="more-info">Standard (Detailansicht)</option><option value="navigate">Navigieren</option><option value="url">URL</option><option value="none">Nichts</option></select><ha-selector class="gesture-navigation" id="navigation-icon_double_tap"></ha-selector><ha-textfield class="gesture-url" id="url-icon_double_tap" label="URL" placeholder="https://example.com"></ha-textfield></div></ha-expansion-panel>
+              <ha-expansion-panel header="Verhalten bei Festhalten" outlined><ha-icon slot="leading-icon" icon="mdi:gesture-tap-hold"></ha-icon><div class="panel-content"><label class="gesture-label">Verhalten bei Festhalten</label><select class="gesture-select" id="interaction-icon_hold"><option value="more-info">Standard (Detailansicht)</option><option value="navigate">Navigieren</option><option value="url">URL</option><option value="none">Nichts</option></select><ha-selector class="gesture-navigation" id="navigation-icon_hold"></ha-selector><ha-textfield class="gesture-url" id="url-icon_hold" label="URL" placeholder="https://example.com"></ha-textfield></div></ha-expansion-panel>
             </div></ha-expansion-panel>
-            <ha-expansion-panel header="Tippverhalten auf der Karte"><div class="panel-content">
-              <ha-expansion-panel header="Verhalten bei Antippen" expanded><div class="panel-content"><label class="gesture-label">Verhalten bei Antippen</label><select class="gesture-select" id="interaction-card_tap"><option value="more-info">Standard (Detailansicht)</option><option value="navigate">Navigieren</option><option value="url">URL</option><option value="none">Nichts</option></select><ha-selector class="gesture-navigation" id="navigation-card_tap"></ha-selector><ha-textfield class="gesture-url" id="url-card_tap" label="URL" placeholder="https://example.com"></ha-textfield></div></ha-expansion-panel>
-              <ha-expansion-panel header="Verhalten bei Doppeltippen"><div class="panel-content"><label class="gesture-label">Verhalten bei Doppeltippen</label><select class="gesture-select" id="interaction-card_double_tap"><option value="more-info">Standard (Detailansicht)</option><option value="navigate">Navigieren</option><option value="url">URL</option><option value="none">Nichts</option></select><ha-selector class="gesture-navigation" id="navigation-card_double_tap"></ha-selector><ha-textfield class="gesture-url" id="url-card_double_tap" label="URL" placeholder="https://example.com"></ha-textfield></div></ha-expansion-panel>
-              <ha-expansion-panel header="Verhalten bei Festhalten"><div class="panel-content"><label class="gesture-label">Verhalten bei Festhalten</label><select class="gesture-select" id="interaction-card_hold"><option value="more-info">Standard (Detailansicht)</option><option value="navigate">Navigieren</option><option value="url">URL</option><option value="none">Nichts</option></select><ha-selector class="gesture-navigation" id="navigation-card_hold"></ha-selector><ha-textfield class="gesture-url" id="url-card_hold" label="URL" placeholder="https://example.com"></ha-textfield></div></ha-expansion-panel>
+            <ha-expansion-panel header="Tippverhalten auf der Karte" outlined><ha-icon slot="leading-icon" icon="mdi:card-outline"></ha-icon><div class="panel-content">
+              <ha-expansion-panel header="Verhalten bei Antippen" outlined><ha-icon slot="leading-icon" icon="mdi:gesture-tap"></ha-icon><div class="panel-content"><label class="gesture-label">Verhalten bei Antippen</label><select class="gesture-select" id="interaction-card_tap"><option value="more-info">Standard (Detailansicht)</option><option value="navigate">Navigieren</option><option value="url">URL</option><option value="none">Nichts</option></select><ha-selector class="gesture-navigation" id="navigation-card_tap"></ha-selector><ha-textfield class="gesture-url" id="url-card_tap" label="URL" placeholder="https://example.com"></ha-textfield></div></ha-expansion-panel>
+              <ha-expansion-panel header="Verhalten bei Doppeltippen" outlined><ha-icon slot="leading-icon" icon="mdi:gesture-double-tap"></ha-icon><div class="panel-content"><label class="gesture-label">Verhalten bei Doppeltippen</label><select class="gesture-select" id="interaction-card_double_tap"><option value="more-info">Standard (Detailansicht)</option><option value="navigate">Navigieren</option><option value="url">URL</option><option value="none">Nichts</option></select><ha-selector class="gesture-navigation" id="navigation-card_double_tap"></ha-selector><ha-textfield class="gesture-url" id="url-card_double_tap" label="URL" placeholder="https://example.com"></ha-textfield></div></ha-expansion-panel>
+              <ha-expansion-panel header="Verhalten bei Festhalten" outlined><ha-icon slot="leading-icon" icon="mdi:gesture-tap-hold"></ha-icon><div class="panel-content"><label class="gesture-label">Verhalten bei Festhalten</label><select class="gesture-select" id="interaction-card_hold"><option value="more-info">Standard (Detailansicht)</option><option value="navigate">Navigieren</option><option value="url">URL</option><option value="none">Nichts</option></select><ha-selector class="gesture-navigation" id="navigation-card_hold"></ha-selector><ha-textfield class="gesture-url" id="url-card_hold" label="URL" placeholder="https://example.com"></ha-textfield></div></ha-expansion-panel>
             </div></ha-expansion-panel>
           </div>
         </ha-expansion-panel>
 
         <!-- Sensoren Panel -->
-        <ha-expansion-panel id="sensors-panel" header="Sensoren" ${this._sensorsExpanded ? 'expanded' : ''}>
+        <ha-expansion-panel id="sensors-panel" header="Sensoren" outlined ${this._sensorsExpanded ? 'expanded' : ''}><ha-icon slot="leading-icon" icon="mdi:cellphone-cog"></ha-icon>
           <div class="panel-content">
             <ha-entity-picker id="input_battery_level"></ha-entity-picker>
             <ha-entity-picker id="input_battery_state"></ha-entity-picker>
@@ -537,7 +544,7 @@ class PersonDetailsCardEditor extends HTMLElement {
         </ha-expansion-panel>
 
         <!-- Orte & Rahmenfarben Panel -->
-        <ha-expansion-panel id="locations-panel" header="Orte & Rahmenfarben" ${this._locationsExpanded ? 'expanded' : ''}>
+        <ha-expansion-panel id="locations-panel" header="Orte & Rahmenfarben" outlined ${this._locationsExpanded ? 'expanded' : ''}><ha-icon slot="leading-icon" icon="mdi:map-marker-radius"></ha-icon>
           <div class="panel-content">
             <div class="location-container">
               ${locationRowsHtml}
@@ -921,7 +928,7 @@ class PersonDetailsCardEditor extends HTMLElement {
           navigation_path: this.shadowRoot.getElementById(`navigation-${key}`)?.value || '',
           url_path: this.shadowRoot.getElementById(`url-${key}`)?.value || ''
         }];
-      }))  
+      }))
     };
 
     this._config = newConfig;
