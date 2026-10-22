@@ -61,14 +61,14 @@ class PersonDetailsCard extends HTMLElement {
     card.style.cursor = hasAction('card') ? 'pointer' : 'default';
     const profileImage = card.querySelector('.profilbild');
     if (profileImage) profileImage.style.cursor = hasAction('icon') ? 'pointer' : 'default';
-    const actionFor = (target, gesture) => {
-      const onImage = target.closest('.profilbild');
-      const key = `${onImage ? 'icon' : 'card'}_${gesture}`;
+    const areaFor = (event) => event.composedPath().includes(profileImage) ? 'icon' : 'card';
+    const actionFor = (area, gesture) => {
+      const key = `${area}_${gesture}`;
       const stored = this.config?.interactions?.[key];
       return typeof stored === 'string' ? { action: stored } : (stored || { action: 'none' });
     };
-    const run = (target, gesture) => {
-      const selected = actionFor(target, gesture);
+    const run = (area, gesture) => {
+      const selected = actionFor(area, gesture);
       const action = selected.action || 'none';
       if (action === 'none') return;
       const actionConfig = action === 'more-info'
@@ -83,9 +83,9 @@ class PersonDetailsCard extends HTMLElement {
       }));
     };
     let clickTimer, holdTimer, held = false;
-    card.addEventListener('click', e => { if (held) { held = false; return; } clearTimeout(clickTimer); clickTimer = setTimeout(() => run(e.target, 'tap'), 260); });
-    card.addEventListener('dblclick', e => { clearTimeout(clickTimer); run(e.target, 'double_tap'); });
-    card.addEventListener('pointerdown', e => { held = false; clearTimeout(holdTimer); holdTimer = setTimeout(() => { held = true; clearTimeout(clickTimer); run(e.target, 'hold'); }, 550); });
+    card.addEventListener('click', e => { if (held) { held = false; return; } const area = areaFor(e); clearTimeout(clickTimer); clickTimer = setTimeout(() => run(area, 'tap'), 260); });
+    card.addEventListener('dblclick', e => { const area = areaFor(e); clearTimeout(clickTimer); run(area, 'double_tap'); });
+    card.addEventListener('pointerdown', e => { const area = areaFor(e); held = false; clearTimeout(holdTimer); holdTimer = setTimeout(() => { held = true; clearTimeout(clickTimer); run(area, 'hold'); }, 550); });
     ['pointerup', 'pointercancel', 'pointerleave'].forEach(type => card.addEventListener(type, () => clearTimeout(holdTimer)));
   }
   
@@ -218,6 +218,9 @@ class PersonDetailsCard extends HTMLElement {
 
           .profilbild {
             grid-area: icon;
+            position: relative;
+            z-index: 1;
+            pointer-events: auto;
             width: 100%;
             aspect-ratio: 1/1;
             border-radius: 10px;
