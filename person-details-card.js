@@ -49,10 +49,18 @@ class PersonDetailsCard extends HTMLElement {
     };
   }
 
- _bindCardInteractions() {
+  _bindCardInteractions() {
     const card = this.shadowRoot.querySelector('ha-card');
     if (!card || card._personInteractionsBound) return;
     card._personInteractionsBound = true;
+    const hasAction = (area) => ['tap', 'double_tap', 'hold'].some(gesture => {
+      const configured = this.config?.interactions?.[`${area}_${gesture}`];
+      const action = typeof configured === 'string' ? configured : configured?.action;
+      return Boolean(action && action !== 'none');
+    });
+    card.style.cursor = hasAction('card') ? 'pointer' : 'default';
+    const profileImage = card.querySelector('.profilbild');
+    if (profileImage) profileImage.style.cursor = hasAction('icon') ? 'pointer' : 'default';
     const actionFor = (target, gesture) => {
       const onImage = target.closest('.profilbild');
       const key = `${onImage ? 'icon' : 'card'}_${gesture}`;
