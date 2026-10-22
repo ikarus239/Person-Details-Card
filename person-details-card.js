@@ -49,6 +49,27 @@ class PersonDetailsCard extends HTMLElement {
     };
   }
 
+  // Zusätzlicher Block von ChatGPT-Codex
+  _bindCardInteractions() {
+    const card = this.shadowRoot.querySelector('ha-card');
+    if (!card || card._personInteractionsBound) return;
+    card._personInteractionsBound = true;
+    const actionFor = (target, gesture) => {
+      const onImage = target.closest('.profilbild');
+      const key = `${onImage ? 'icon' : 'card'}_${gesture}`;
+      return this.config?.interactions?.[key] || 'none';
+    };
+    const run = (target, gesture) => {
+      if (actionFor(target, gesture) === 'more-info') this.dispatchEvent(new CustomEvent('hass-more-info', {detail: {entityId: this.config.entity}, bubbles: true, composed: true}));
+    };
+    let clickTimer, holdTimer, held = false;
+    card.addEventListener('click', e => { if (held) { held = false; return; } clearTimeout(clickTimer); clickTimer = setTimeout(() => run(e.target, 'tap'), 260); });
+    card.addEventListener('dblclick', e => { clearTimeout(clickTimer); run(e.target, 'double_tap'); });
+    card.addEventListener('pointerdown', e => { held = false; clearTimeout(holdTimer); holdTimer = setTimeout(() => { held = true; clearTimeout(clickTimer); run(e.target, 'hold'); }, 550); });
+    ['pointerup', 'pointercancel', 'pointerleave'].forEach(type => card.addEventListener(type, () => clearTimeout(holdTimer)));
+  }
+
+  
   set hass(hass) {
     const personId = this.config.entity;
     let personDaten = hass.states[personId];
@@ -239,6 +260,8 @@ class PersonDetailsCard extends HTMLElement {
         </ha-card>
       `;
       this._renderedCard = true;
+      // Zusätzlicher Block von ChatGPT-Codex
+      this._bindCardInteractions();
     }
 
     const imgEl = this.shadowRoot.querySelector('.profilbild');
@@ -363,6 +386,8 @@ class PersonDetailsCardEditor extends HTMLElement {
           gap: 16px;
           padding: 12px 8px;
         }
+        .gesture-select { width: 100%; box-sizing: border-box; padding: 10px 12px; border: 1px solid var(--divider-color); border-radius: 6px; background: var(--card-background-color, var(--secondary-background-color)); color: var(--primary-text-color); font: inherit; }
+        .gesture-label { font-size: 12px; color: var(--secondary-text-color); margin-bottom: -10px; }
         .device-info-box {
           background: var(--card-background-color, var(--secondary-background-color));
           padding: 10px 14px;
@@ -465,6 +490,21 @@ class PersonDetailsCardEditor extends HTMLElement {
         <!-- Dynamischer Bereich für gefundene Geräte -->
         <div id="device-container"></div>
 
+        <ha-expansion-panel id="interaction-panel" header="Tippverhalten">
+          <div class="panel-content">
+            <ha-expansion-panel header="Tippverhalten auf dem Icon" expanded><div class="panel-content">
+              <ha-expansion-panel header="Verhalten bei Antippen" expanded><div class="panel-content"><label class="gesture-label">Verhalten bei Antippen</label><select class="gesture-select" id="interaction-icon_tap"><option value="more-info">Standard (Detailansicht)</option><option value="none">Standard (Nichts)</option></select></div></ha-expansion-panel>
+              <ha-expansion-panel header="Verhalten bei Doppeltippen" expanded><div class="panel-content"><label class="gesture-label">Verhalten bei Doppeltippen</label><select class="gesture-select" id="interaction-icon_double_tap"><option value="none">Standard (Nichts)</option><option value="more-info">Standard (Detailansicht)</option></select></div></ha-expansion-panel>
+              <ha-expansion-panel header="Verhalten bei Festhalten" expanded><div class="panel-content"><label class="gesture-label">Verhalten bei Festhalten</label><select class="gesture-select" id="interaction-icon_hold"><option value="none">Standard (Nichts)</option><option value="more-info">Standard (Detailansicht)</option></select></div></ha-expansion-panel>
+            </div></ha-expansion-panel>
+            <ha-expansion-panel header="Tippverhalten auf der Karte"><div class="panel-content">
+              <ha-expansion-panel header="Verhalten bei Antippen" expanded><div class="panel-content"><label class="gesture-label">Verhalten bei Antippen</label><select class="gesture-select" id="interaction-card_tap"><option value="more-info">Standard (Detailansicht)</option><option value="none">Standard (Nichts)</option></select></div></ha-expansion-panel>
+              <ha-expansion-panel header="Verhalten bei Doppeltippen"><div class="panel-content"><label class="gesture-label">Verhalten bei Doppeltippen</label><select class="gesture-select" id="interaction-card_double_tap"><option value="none">Standard (Nichts)</option><option value="more-info">Standard (Detailansicht)</option></select></div></ha-expansion-panel>
+              <ha-expansion-panel header="Verhalten bei Festhalten"><div class="panel-content"><label class="gesture-label">Verhalten bei Festhalten</label><select class="gesture-select" id="interaction-card_hold"><option value="none">Standard (Nichts)</option><option value="more-info">Standard (Detailansicht)</option></select></div></ha-expansion-panel>
+            </div></ha-expansion-panel>
+          </div>
+        </ha-expansion-panel>
+
         <!-- Sensoren Panel -->
         <ha-expansion-panel id="sensors-panel" header="Sensoren" ${this._sensorsExpanded ? 'expanded' : ''}>
           <div class="panel-content">
@@ -511,6 +551,12 @@ class PersonDetailsCardEditor extends HTMLElement {
       });
     });
 
+    const interactionValues = this._config.interactions || {};
+    this.shadowRoot.querySelectorAll('.gesture-select').forEach(select => {
+      const key = select.id.replace('interaction-', '');
+      select.value = interactionValues[key] || (key.endsWith('_tap') ? 'more-info' : 'none');
+      select.addEventListener('change', () => this._valueChanged());
+    });
     this._setupAllPickers();
     this._attachLocationListeners();
     this._updateDeviceContainer();
@@ -824,7 +870,8 @@ class PersonDetailsCardEditor extends HTMLElement {
         wifi: getVal('input_wi_fi'),
         proximity: getVal('input_proximity')
       },
-      location_colors: config.location_colors || []
+      location_colors: config.location_colors || [],
+      interactions: Object.fromEntries([...this.shadowRoot.querySelectorAll('.gesture-select')].map(select => [select.id.replace('interaction-', ''), select.value]))      
     };
 
     this._config = newConfig;
