@@ -49,18 +49,30 @@ class PersonDetailsCard extends HTMLElement {
     };
   }
 
-  // Zusätzlicher Block von ChatGPT-Codex
-  _bindCardInteractions() {
+ _bindCardInteractions() {
     const card = this.shadowRoot.querySelector('ha-card');
     if (!card || card._personInteractionsBound) return;
     card._personInteractionsBound = true;
     const actionFor = (target, gesture) => {
       const onImage = target.closest('.profilbild');
       const key = `${onImage ? 'icon' : 'card'}_${gesture}`;
-      return this.config?.interactions?.[key] || 'none';
+      const stored = this.config?.interactions?.[key];
+      return typeof stored === 'string' ? { action: stored } : (stored || { action: 'none' });
     };
     const run = (target, gesture) => {
-      if (actionFor(target, gesture) === 'more-info') this.dispatchEvent(new CustomEvent('hass-more-info', {detail: {entityId: this.config.entity}, bubbles: true, composed: true}));
+      const selected = actionFor(target, gesture);
+      const action = selected.action || 'none';
+      if (action === 'none') return;
+      const actionConfig = action === 'more-info'
+        ? { action: 'more-info', entity: this.config.entity }
+        : action === 'navigate'
+          ? { action: 'navigate', navigation_path: selected.navigation_path || '/' }
+          : { action: 'url', url_path: selected.url_path || '' };
+      const actionName = gesture === 'double_tap' ? 'double_tap' : gesture;
+      this.dispatchEvent(new CustomEvent('hass-action', {
+        detail: { config: { entity: this.config.entity, [`${actionName}_action`]: actionConfig }, action: actionName },
+        bubbles: true, composed: true
+      }));
     };
     let clickTimer, holdTimer, held = false;
     card.addEventListener('click', e => { if (held) { held = false; return; } clearTimeout(clickTimer); clickTimer = setTimeout(() => run(e.target, 'tap'), 260); });
@@ -68,7 +80,6 @@ class PersonDetailsCard extends HTMLElement {
     card.addEventListener('pointerdown', e => { held = false; clearTimeout(holdTimer); holdTimer = setTimeout(() => { held = true; clearTimeout(clickTimer); run(e.target, 'hold'); }, 550); });
     ['pointerup', 'pointercancel', 'pointerleave'].forEach(type => card.addEventListener(type, () => clearTimeout(holdTimer)));
   }
-
   
   set hass(hass) {
     const personId = this.config.entity;
@@ -260,7 +271,6 @@ class PersonDetailsCard extends HTMLElement {
         </ha-card>
       `;
       this._renderedCard = true;
-      // Zusätzlicher Block von ChatGPT-Codex
       this._bindCardInteractions();
     }
 
@@ -493,14 +503,14 @@ class PersonDetailsCardEditor extends HTMLElement {
         <ha-expansion-panel id="interaction-panel" header="Tippverhalten">
           <div class="panel-content">
             <ha-expansion-panel header="Tippverhalten auf dem Icon" expanded><div class="panel-content">
-              <ha-expansion-panel header="Verhalten bei Antippen" expanded><div class="panel-content"><label class="gesture-label">Verhalten bei Antippen</label><select class="gesture-select" id="interaction-icon_tap"><option value="more-info">Standard (Detailansicht)</option><option value="none">Standard (Nichts)</option></select></div></ha-expansion-panel>
-              <ha-expansion-panel header="Verhalten bei Doppeltippen" expanded><div class="panel-content"><label class="gesture-label">Verhalten bei Doppeltippen</label><select class="gesture-select" id="interaction-icon_double_tap"><option value="none">Standard (Nichts)</option><option value="more-info">Standard (Detailansicht)</option></select></div></ha-expansion-panel>
-              <ha-expansion-panel header="Verhalten bei Festhalten" expanded><div class="panel-content"><label class="gesture-label">Verhalten bei Festhalten</label><select class="gesture-select" id="interaction-icon_hold"><option value="none">Standard (Nichts)</option><option value="more-info">Standard (Detailansicht)</option></select></div></ha-expansion-panel>
+              <ha-expansion-panel header="Verhalten bei Antippen" expanded><div class="panel-content"><label class="gesture-label">Verhalten bei Antippen</label><select class="gesture-select" id="interaction-icon_tap"><option value="more-info">Standard (Detailansicht)</option><option value="navigate">Navigieren</option><option value="url">URL</option><option value="none">Nichts</option></select><ha-selector class="gesture-navigation" id="navigation-icon_tap"></ha-selector><ha-textfield class="gesture-url" id="url-icon_tap" label="URL" placeholder="https://example.com"></ha-textfield></div></ha-expansion-panel>
+              <ha-expansion-panel header="Verhalten bei Doppeltippen" expanded><div class="panel-content"><label class="gesture-label">Verhalten bei Doppeltippen</label><select class="gesture-select" id="interaction-icon_double_tap"><option value="more-info">Standard (Detailansicht)</option><option value="navigate">Navigieren</option><option value="url">URL</option><option value="none">Nichts</option></select><ha-selector class="gesture-navigation" id="navigation-icon_double_tap"></ha-selector><ha-textfield class="gesture-url" id="url-icon_double_tap" label="URL" placeholder="https://example.com"></ha-textfield></div></ha-expansion-panel>
+              <ha-expansion-panel header="Verhalten bei Festhalten" expanded><div class="panel-content"><label class="gesture-label">Verhalten bei Festhalten</label><select class="gesture-select" id="interaction-icon_hold"><option value="more-info">Standard (Detailansicht)</option><option value="navigate">Navigieren</option><option value="url">URL</option><option value="none">Nichts</option></select><ha-selector class="gesture-navigation" id="navigation-icon_hold"></ha-selector><ha-textfield class="gesture-url" id="url-icon_hold" label="URL" placeholder="https://example.com"></ha-textfield></div></ha-expansion-panel>
             </div></ha-expansion-panel>
             <ha-expansion-panel header="Tippverhalten auf der Karte"><div class="panel-content">
-              <ha-expansion-panel header="Verhalten bei Antippen" expanded><div class="panel-content"><label class="gesture-label">Verhalten bei Antippen</label><select class="gesture-select" id="interaction-card_tap"><option value="more-info">Standard (Detailansicht)</option><option value="none">Standard (Nichts)</option></select></div></ha-expansion-panel>
-              <ha-expansion-panel header="Verhalten bei Doppeltippen"><div class="panel-content"><label class="gesture-label">Verhalten bei Doppeltippen</label><select class="gesture-select" id="interaction-card_double_tap"><option value="none">Standard (Nichts)</option><option value="more-info">Standard (Detailansicht)</option></select></div></ha-expansion-panel>
-              <ha-expansion-panel header="Verhalten bei Festhalten"><div class="panel-content"><label class="gesture-label">Verhalten bei Festhalten</label><select class="gesture-select" id="interaction-card_hold"><option value="none">Standard (Nichts)</option><option value="more-info">Standard (Detailansicht)</option></select></div></ha-expansion-panel>
+              <ha-expansion-panel header="Verhalten bei Antippen" expanded><div class="panel-content"><label class="gesture-label">Verhalten bei Antippen</label><select class="gesture-select" id="interaction-card_tap"><option value="more-info">Standard (Detailansicht)</option><option value="navigate">Navigieren</option><option value="url">URL</option><option value="none">Nichts</option></select><ha-selector class="gesture-navigation" id="navigation-card_tap"></ha-selector><ha-textfield class="gesture-url" id="url-card_tap" label="URL" placeholder="https://example.com"></ha-textfield></div></ha-expansion-panel>
+              <ha-expansion-panel header="Verhalten bei Doppeltippen"><div class="panel-content"><label class="gesture-label">Verhalten bei Doppeltippen</label><select class="gesture-select" id="interaction-card_double_tap"><option value="more-info">Standard (Detailansicht)</option><option value="navigate">Navigieren</option><option value="url">URL</option><option value="none">Nichts</option></select><ha-selector class="gesture-navigation" id="navigation-card_double_tap"></ha-selector><ha-textfield class="gesture-url" id="url-card_double_tap" label="URL" placeholder="https://example.com"></ha-textfield></div></ha-expansion-panel>
+              <ha-expansion-panel header="Verhalten bei Festhalten"><div class="panel-content"><label class="gesture-label">Verhalten bei Festhalten</label><select class="gesture-select" id="interaction-card_hold"><option value="more-info">Standard (Detailansicht)</option><option value="navigate">Navigieren</option><option value="url">URL</option><option value="none">Nichts</option></select><ha-selector class="gesture-navigation" id="navigation-card_hold"></ha-selector><ha-textfield class="gesture-url" id="url-card_hold" label="URL" placeholder="https://example.com"></ha-textfield></div></ha-expansion-panel>
             </div></ha-expansion-panel>
           </div>
         </ha-expansion-panel>
@@ -554,8 +564,23 @@ class PersonDetailsCardEditor extends HTMLElement {
     const interactionValues = this._config.interactions || {};
     this.shadowRoot.querySelectorAll('.gesture-select').forEach(select => {
       const key = select.id.replace('interaction-', '');
-      select.value = interactionValues[key] || (key.endsWith('_tap') ? 'more-info' : 'none');
-      select.addEventListener('change', () => this._valueChanged());
+      const stored = interactionValues[key];
+      const action = typeof stored === 'string' ? stored : stored?.action;
+      select.value = action || (key.endsWith('_tap') ? 'more-info' : 'none');
+      const nav = this.shadowRoot.getElementById(`navigation-${key}`);
+      const url = this.shadowRoot.getElementById(`url-${key}`);
+      nav.selector = { navigation: {} };
+      nav.hass = this._hass;
+      nav.value = typeof stored === 'object' ? (stored.navigation_path || '') : '';
+      url.value = typeof stored === 'object' ? (stored.url_path || '') : '';
+      const updateVisibility = () => {
+        nav.style.display = select.value === 'navigate' ? '' : 'none';
+        url.style.display = select.value === 'url' ? '' : 'none';
+      };
+      updateVisibility();
+      select.addEventListener('change', () => { updateVisibility(); this._valueChanged(); });
+      nav.addEventListener('value-changed', () => this._valueChanged());
+      url.addEventListener('value-changed', () => this._valueChanged());
     });
     this._setupAllPickers();
     this._attachLocationListeners();
@@ -871,7 +896,14 @@ class PersonDetailsCardEditor extends HTMLElement {
         proximity: getVal('input_proximity')
       },
       location_colors: config.location_colors || [],
-      interactions: Object.fromEntries([...this.shadowRoot.querySelectorAll('.gesture-select')].map(select => [select.id.replace('interaction-', ''), select.value]))      
+      interactions: Object.fromEntries([...this.shadowRoot.querySelectorAll('.gesture-select')].map(select => {
+        const key = select.id.replace('interaction-', '');
+        return [key, {
+          action: select.value,
+          navigation_path: this.shadowRoot.getElementById(`navigation-${key}`)?.value || '',
+          url_path: this.shadowRoot.getElementById(`url-${key}`)?.value || ''
+        }];
+      }))  
     };
 
     this._config = newConfig;
