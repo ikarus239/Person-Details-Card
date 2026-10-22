@@ -579,8 +579,15 @@ class PersonDetailsCardEditor extends HTMLElement {
       };
       updateVisibility();
       select.addEventListener('change', () => { updateVisibility(); this._valueChanged(); });
-      nav.addEventListener('value-changed', () => this._valueChanged());
-      url.addEventListener('value-changed', () => this._valueChanged());
+      nav.addEventListener('value-changed', event => {
+        nav.value = event.detail.value;
+        this._valueChanged();
+      });
+      url.addEventListener('value-changed', event => {
+        url.value = event.detail.value;
+        this._valueChanged();
+      });
+      url.addEventListener('input', () => this._valueChanged());
     });
     this._setupAllPickers();
     this._attachLocationListeners();
